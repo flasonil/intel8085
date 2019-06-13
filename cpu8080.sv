@@ -1,5 +1,4 @@
 
-
 `timescale 1ns / 1ps
 
 `define cpus_idle		6'h00 // Idle
@@ -41,8 +40,8 @@ output logic [5:0] state
 );
 
 logic [5:0] next_state;
-logic [15:0] pc;
-logic ale_en;
+logic [15:0] pc,address,data_address;
+logic ale_en, fetch_data;
 logic [7:0] data_in;
 
 logic [7:0] regfil[0:7];
@@ -50,9 +49,14 @@ logic [7:0] regfil[0:7];
 always@(negedge clock)begin
 	if(reset_in) begin
 	state <= `cpus_idle;
-	pc <= 16'b0000000000000000;
+	pc <= 16'b0000010100000010;
 	regfil <= {8'h00,8'h00,8'h00,8'h00,8'h00,8'h00,8'h00,8'h00};
-	end else state <= next_state;
+	fetch_data <= 1'b1;
+	end else begin
+	state <= next_state;
+	if(fetch_data) address <= pc;
+	else address <= data_address;
+end
 end
 
 always@(state)begin
@@ -61,16 +65,14 @@ always@(state)begin
 	`cpus_idle: next_state <= `cpus_fetchi1;
 
 	`cpus_fetchi1: begin
-	ADD <= 16'b0000010100000010;
-	//IO_Mn <= 1'b0;
-	//S0 <= 1'b1;
-	//S1 <= 1'b1;
+	ADD <= address;
+	
 	RDn <= 1'b1;
-	//WRn <= 1'b1;
 	next_state <= `cpus_fetchi2;
 	end
 
 	`cpus_fetchi2: begin
+	pc <= pc + 16'b0000000000000001;
 	RDn <= 1'b0;
 	next_state <= `cpus_fetchi3;
 	end
@@ -87,14 +89,21 @@ always@(state)begin
 	`cpus_fetchi4: begin
 		case(data_in[7:6])
 
-		/*2'b00:begin
-		end*/
+		2'b00:begin
+			if(data_in[2:0] == 3'b110) begin
+			next_state <= `cpus_read1;
+			fetch_data <= 1'b0;
+			end
+		end
 
 		2'b01:begin
 			if(data_in[5:0] == 6'b110110) next_state <= `cpus_halt;
 			else begin
-				if(data_in[2:0] == `reg_m)
+				if(data_in[2:0] == `reg_m)begin
+					data_address <= {regfil[`reg_h],regfil[`reg_l]};
+					fetch_data <= 1'b0;
 					next_state <= `cpus_read1;
+					end
 				else if(data_in[5:3] == `reg_m)
 					next_state <= `cpus_write;
 				else begin
@@ -107,7 +116,7 @@ always@(state)begin
 	end
 
 	`cpus_read1: begin
-	ADD <= {regfil[`reg_h],regfil[`reg_l]};
+	ADD <= address;
 	next_state <= `cpus_read2;
 	end
 
@@ -121,10 +130,12 @@ always@(state)begin
 	else begin
 	next_state <= `cpus_fetchi1;
 	regfil[data_in[5:3]] <= DATA;
+	fetch_data <= 1'b1;
 	RDn <= 1'b1;
 	end
 	end
 	endcase
 end
-
+//assign address = fetch_data ? pc : data_address;
 endmodule
+
