@@ -1,29 +1,41 @@
 module rom8775
 (
-input logic ALE,
 inout logic [7:0] AD,
-input logic [2:0] A,
+input logic [15:0] ADD,
 input logic RDn,
-//input logic CE1n,
-//input logic CE2n,
-//input logic IOMn,
+
 input logic CLK,
 input logic RESET,
-//input logic IORn,
 
 output logic READY
 );
 
 logic [7:0] datao,address;
 
-always@(address) case(address)
+always@(negedge CLK)begin
+	if(RESET) READY <= 1'b1;
+	else
+	case(ADD)
 
 	`include "test.rom" // get contents of memory
 	default datao = 8'h76; // hlt
 
 endcase
+end
 
-assign address = {A,AD};
-assign AD = RDn ? datao : 8'bzzzzzzzz;
+/*always@(address) begin
+
+
+case(address)
+
+	`include "test.rom" // get contents of memory
+	default datao = 8'h76; // hlt
+
+endcase
+//READY <= 1'b1;
+end*/
+
+
+assign AD = RDn ? 8'bzzzzzzzz : datao;
 
 endmodule
