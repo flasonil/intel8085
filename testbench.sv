@@ -4,9 +4,9 @@ module testbench();
 
 logic clk,rst,s0,s1,ale,iomn,rdn,wrn;
 logic [1:0] st;
-wire [7:0] address_data,address_bus;
+logic [7:0] data_bus,address_bus;
 
-cpu8080 DUT (.clock(clk),.reset_in(rst),.S0(s0),.S1(s1),.IO_Mn(iomn),.RDn(rdn),.WRn(wrn),.ALE(ale),.ADD(address_bus),.state(st));
+system DUT (.clk(clk),.rst(rst)/*,.S0(s0),.S1(s1),.IO_Mn(iomn),.RDn(rdn),.WRn(wrn),.ADD(address_bus),.state(st),.DATA(data_bus)*/);
 
 always begin
 
@@ -27,7 +27,14 @@ rst = 1;
 @(posedge clk);
 @(posedge clk);
 @(posedge clk);
+@(posedge clk);
+@(posedge clk);
+@(posedge clk);
 $stop;
+end
+
+always @(posedge clk) begin
+    $display ("[Time %0t ps] data value = %x", $time, DUT.U1.data_in);
 end
 
 endmodule
