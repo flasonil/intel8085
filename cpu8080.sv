@@ -1,4 +1,5 @@
 
+
 `timescale 1ns / 1ps
 
 `define cpus_idle		6'h00 // Idle
@@ -30,9 +31,9 @@ input logic clock,
 input logic reset_in,
 input logic READY,
 
-/*output logic S0,
+output logic S0,
 output logic S1,
-output logic IO_Mn,*/
+output logic IO_Mn,
 output logic RDn,
 //output logic WRn,
 output logic [15:0] ADD,
@@ -66,8 +67,10 @@ always@(state)begin
 
 	`cpus_fetchi1: begin
 	ADD <= address;
-	
+	IO_Mn <= 1'b0;
 	RDn <= 1'b1;
+	S1 <= 1'b1;
+	S0 <= 1'b1;
 	next_state <= `cpus_fetchi2;
 	end
 
@@ -90,13 +93,15 @@ always@(state)begin
 		case(data_in[7:6])
 
 		2'b00:begin
-			if(data_in[2:0] == 3'b110) begin
+			if(data_in[2:0] == 3'b110) begin	//MVI Instruction
+			data_address <= pc;
+			pc <= pc + 1;
 			next_state <= `cpus_read1;
 			fetch_data <= 1'b0;
 			end
 		end
 
-		2'b01:begin
+		2'b01:begin					//MV instruction
 			if(data_in[5:0] == 6'b110110) next_state <= `cpus_halt;
 			else begin
 				if(data_in[2:0] == `reg_m)begin
@@ -116,6 +121,8 @@ always@(state)begin
 	end
 
 	`cpus_read1: begin
+	S0 <= 1'b0;
+	S1 <= 1'b1;
 	ADD <= address;
 	next_state <= `cpus_read2;
 	end
@@ -138,4 +145,5 @@ always@(state)begin
 end
 //assign address = fetch_data ? pc : data_address;
 endmodule
+
 
