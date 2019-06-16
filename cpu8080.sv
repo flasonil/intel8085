@@ -44,15 +44,17 @@ output logic [5:0] state
 logic [5:0] next_state;
 logic [15:0] pc,address;
 
-logic [7:0] data_in,data_out,temp_reg_z;
+logic [7:0] data_in,data_out,temp_reg_z,accumulator;
 
 logic [7:0] regfil[0:7];
+logic lowByteSaved;
 
 always@(negedge clock)begin
 	if(reset_in) begin
 	state <= `cpus_idle;
 	pc <= /*16'b0000010100000010*/16'b0000000100000000;
 	regfil <= {8'h00,8'h00,8'h00,8'h00,8'h00,8'h00,8'h00,8'h00};
+	lowByteSaved <= 1'b0;
 	end else begin
 	state <= next_state;
 	//address <= pc;
@@ -93,11 +95,18 @@ always@(state)begin
 		case(data_in[7:6])
 
 		2'b00:begin
-			if(data_in[2:0] == 3'b110) begin	//MVI Instruction
-				pc <= pc + 1;
-				next_state <= `cpus_read1;
-			end else if (data_in[2:0] == 3'b001) begin
-			//LXI
+			//MVI or LXI Instruction
+			if(data_in[5:0]==3'b000010 || data_in[5:0]==3'b010010) next_state <= `cpus_write1; //STAX
+			else if(data_in[5:0] == 6'b101010 || data_in[5:0] == 6'b011010)//LDAX
+			next_state <= `cpus_read1;
+			else if(data_in[5:0] == 6'b110010)begin		//STA
+			next_state <= `cpus_read1;
+			pc <= pc + 1;
+			end else if(data_in[5:0] == 6'b111010)		//LDA
+			next_state <= `cpus_read1;			
+			else begin
+			pc <= pc + 1;
+			next_state <= `cpus_read1;
 			end
 		end
 
@@ -106,9 +115,10 @@ always@(state)begin
 			else begin
 				if(data_in[2:0] == `reg_m)begin
 					next_state <= `cpus_read1;	//MOV memory to register
+					pc <= {regfil[`reg_h],regfil[`reg_l]};
 					end
 				else if(data_in[5:3] == `reg_m)
-					next_state <= `cpus_write1;	//To be done: MV register to memory
+					next_state <= `cpus_write1;	//MV register to memory
 				else begin
 				regfil[data_in[5:3]] <= regfil[data_in[2:0]]; //MOV register to register
 				next_state = `cpus_fetchi1;
@@ -121,7 +131,9 @@ always@(state)begin
 	`cpus_read1: begin
 	S0 <= 1'b0;
 	S1 <= 1'b1;
-	ADD <= pc;
+	if(data_in == 8'b00101010) ADD <= {regfil[`reg_b],regfil[`reg_c]};		//LDAX B
+	else if(data_in == 8'b00011010) ADD <= {regfil[`reg_d],regfil[`reg_e]};		//LDAX D
+	else ADD <= pc;
 	next_state <= `cpus_read2;
 	end
 
@@ -138,9 +150,24 @@ always@(state)begin
 	if(data_in == 8'b00110110)begin		//MVI to memory: save immediate to temp reg z
 		next_state <= `cpus_write1;
 		temp_reg_z <= DATA;
-		/* just for test mvi m*/
-		regfil[`reg_l] <= 8'b00000000;
-		regfil[`reg_h] <= 8'b00000000;
+	end
+	else if(data_in == 8'b00101010 || data_in == 8'b00011010)
+		accumulator <= DATA;
+
+	else if(data_in[7:6]==2'b00&&data_in[2:0]==3'b001)begin	//LXI
+		if(!lowByteSaved)begin					//LXI saving low byte
+		regfil[(data_in[5:3])+1] <= DATA;
+		lowByteSaved <= 1'b1;
+		pc <= pc + 1;
+		next_state <= `cpus_read1;
+		end else begin						//LXI saving high byte
+		regfil[data_in[5:3]] <= DATA;
+		lowByteSaved <= 1'b0;
+		pc <= pc + 1;
+		next_state <= `cpus_fetchi1;
+		end
+	end else if(data_in[7:6]==2'b01 && data_in[2:0]==2'b110) begin //MOV memory to register
+		regfil[data_in[5:3]] <= DATA;
 	end else begin
 		regfil[data_in[5:3]] <= DATA;	//MVI to regfile: save immediate to register file
 		pc <= pc + 1;
@@ -153,11 +180,16 @@ always@(state)begin
 	IO_Mn <= 1'b0;
 	S0 <= 1'b1;
 	S1 <= 1'b0;
-	ADD <= {regfil[`reg_h],regfil[`reg_l]};
-	if(data_in[7:3] == 6'b00110) //MOV immediate to memory
+	if(data_in[7:3] == 6'b00110)begin //MOV immediate to memory
+		ADD <= {regfil[`reg_h],regfil[`reg_l]};
 		data_out <= temp_reg_z;
-	else if(data_in[7:3] == 6'b01110) //MOV register to memory
+	end else if(data_in[7:3] == 6'b01110)begin //MOV register to memory
+		ADD <= {regfil[`reg_h],regfil[`reg_l]};
 		data_out <= regfil[data_in[2:0]];
+	end else if(data_in[7:6]==2'b00 && data_in[2:0]==2'b010) begin	//STAX: move accumulator to Mem[B or D,C or F]
+		ADD <= {regfil[data_in[5:3]],regfil[data_in[5:3] + 1]};
+		data_out <= accumulator;
+	end
 	next_state <= `cpus_write2;
 	end
 
