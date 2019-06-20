@@ -10,6 +10,15 @@
 `define cpus_read1		6'h12
 `define cpus_read2		6'h13
 `define cpus_read3		6'h14
+`define cpus_read4		6'h15
+`define cpus_read5		6'h16
+`define cpus_read6		6'h17
+`define cpus_read7		6'h18
+`define cpus_read8		6'h19
+`define cpus_read9		6'h1A
+`define cpus_read10		6'h1B
+`define cpus_read11		6'h1C
+`define cpus_read12		6'h1F
 `define cpus_write1		6'h0e
 `define cpus_write2		6'h0f
 `define cpus_write3		6'h10
@@ -42,12 +51,12 @@ output logic [5:0] state
 );
 
 logic [5:0] next_state;
-logic [15:0] pc,address;
+logic [15:0] pc,address,sp;
 
-logic [7:0] data_in,data_out,temp_reg_z,accumulator;
+logic [7:0] data_in,data_out,temp_reg_z,temp_reg_w,accumulator;
 
 logic [7:0] regfil[0:7];
-logic lowByteSaved;
+integer lowByteSaved,numLDAread,numLHDLread,numSHLDread,numSHLDwrite;
 
 always@(negedge clock)begin
 	if(reset_in) begin
@@ -55,6 +64,8 @@ always@(negedge clock)begin
 	pc <= /*16'b0000010100000010*/16'b0000000100000000;
 	regfil <= {8'h00,8'h00,8'h00,8'h00,8'h00,8'h00,8'h00,8'h00};
 	lowByteSaved <= 1'b0;
+	accumulator <= 8'hAD;
+	sp <= 16'h0000;
 	end else begin
 	state <= next_state;
 	//address <= pc;
@@ -99,19 +110,14 @@ always@(state)begin
 			if(data_in[5:0]==3'b000010 || data_in[5:0]==3'b010010) next_state <= `cpus_write1; //STAX
 			else if(data_in[5:0] == 6'b101010 || data_in[5:0] == 6'b011010)//LDAX
 			next_state <= `cpus_read1;
-			else if(data_in[5:0] == 6'b110010)begin		//STA
+			else if(data_in[5:0] == 6'h32 || data_in[5:0] == 6'h3A/*SDA,LDA*/ || data_in[5:0] == 6'h01 || data_in[5:0] == 6'h11 || data_in[5:0] == 6'h21 || data_in[5:0] == 6'h31/*LXI*/ || data_in[2:0] == 6'b110 || data_in[5:0] == 6'h22 || data_in[5:0] == 6'h2A)begin		//STA
 			next_state <= `cpus_read1;
-			pc <= pc + 1;
-			end else if(data_in[5:0] == 6'b111010)		//LDA
-			next_state <= `cpus_read1;			
-			else begin
-			pc <= pc + 1;
-			next_state <= `cpus_read1;
+			pc <= pc + 1;		
 			end
 		end
 
 		2'b01:begin					//MV instruction
-			if(data_in[5:0] == 6'b110110) next_state <= `cpus_halt;
+/*			if(data_in[5:0] == 6'b110110) next_state <= `cpus_halt;
 			else begin
 				if(data_in[2:0] == `reg_m)begin
 					next_state <= `cpus_read1;	//MOV memory to register
@@ -123,7 +129,12 @@ always@(state)begin
 				regfil[data_in[5:3]] <= regfil[data_in[2:0]]; //MOV register to register
 				next_state = `cpus_fetchi1;
 				end
-			end
+			end*/
+			if(data_in[2:0] == 3'b110/*MVI m or MVI r*/|| data_in[2:0] == 3'b001/*LXI B,D,H or SP*//*|| data_in[5:0] == 6'h0A|| data_in[5:0] == 6'h1A*/|| data_in[5:0] == 6'h32 || data_in[5:0] == 6'h3A || data_in[5:0] == 6'h22 || data_in[5:0] == 6'h2A)begin
+			pc <= pc + 1;
+			next_state <= `cpus_read1;
+			end else if(data_in[5:0] == 6'h0A|| data_in[5:0] == 6'h1A)
+			next_state <= `cpus_read1;
 		end
 		endcase
 	end
@@ -132,7 +143,10 @@ always@(state)begin
 	S0 <= 1'b0;
 	S1 <= 1'b1;
 	if(data_in == 8'b00101010) ADD <= {regfil[`reg_b],regfil[`reg_c]};		//LDAX B
-	else if(data_in == 8'b00011010) ADD <= {regfil[`reg_d],regfil[`reg_e]};		//LDAX D
+	//else if(data_in == 8'b00011010) ADD <= {regfil[`reg_d],regfil[`reg_e]};		//LDAX D
+	//else if(data_in == 8'h3A && numLDAread == 2) ADD <= {temp_reg_w,temp_reg_z};	//LDA
+	//else if(data_in == 8'h2A && numLHDLread == 2) ADD <= {temp_reg_w,temp_reg_z};	//LHDL third read
+	//else if(data_in == 8'h3A && numLDAread == 3) ADD <= {temp_reg_w,temp_reg_z+1};	//LHDL fourth read
 	else ADD <= pc;
 	next_state <= `cpus_read2;
 	end
@@ -151,23 +165,34 @@ always@(state)begin
 		next_state <= `cpus_write1;
 		temp_reg_z <= DATA;
 	end
-	else if(data_in == 8'b00101010 || data_in == 8'b00011010)
+	else if(data_in == 8'b00001010 || data_in == 8'b00011010)begin	//LDAX B or D
 		accumulator <= DATA;
-
-	else if(data_in[7:6]==2'b00&&data_in[2:0]==3'b001)begin	//LXI
-		if(!lowByteSaved)begin					//LXI saving low byte
-		regfil[(data_in[5:3])+1] <= DATA;
-		lowByteSaved <= 1'b1;
-		pc <= pc + 1;
-		next_state <= `cpus_read1;
-		end else begin						//LXI saving high byte
-		regfil[data_in[5:3]] <= DATA;
-		lowByteSaved <= 1'b0;
-		pc <= pc + 1;
 		next_state <= `cpus_fetchi1;
-		end
+	end
+	else if(data_in == 8'h01 || data_in == 8'h11 || data_in == 8'h21 || data_in == 8'h31)begin	//LXI				//LXI saving low byte
+		regfil[(data_in[5:3])+1] <= DATA;
+		pc <= pc + 1;
+		next_state <= `cpus_read4;
 	end else if(data_in[7:6]==2'b01 && data_in[2:0]==2'b110) begin //MOV memory to register
 		regfil[data_in[5:3]] <= DATA;
+		pc <= pc + 1;
+		next_state <= `cpus_fetchi1;
+	end else if(data_in == 8'h32)begin		//STA
+		temp_reg_z <= DATA;
+		pc <= pc + 1;
+		next_state <= `cpus_read4;
+	end else if(data_in == 8'h3A)begin		//LDA
+		temp_reg_z <= DATA;
+		pc <= pc + 1;
+		next_state <= `cpus_read4;
+	end else if(data_in == 8'h2A)begin		//LHDL
+		temp_reg_z <= DATA;
+		pc <= pc + 1;
+		next_state <= `cpus_read4;
+	end else if(data_in == 8'h22)begin
+		temp_reg_z <= DATA;
+		pc <= pc + 1;
+		next_state <= `cpus_read4;
 	end else begin
 		regfil[data_in[5:3]] <= DATA;	//MVI to regfile: save immediate to register file
 		pc <= pc + 1;
@@ -176,11 +201,98 @@ always@(state)begin
 	end
 	end
 
+	`cpus_read4: begin
+	S0 <= 1'b0;
+	S1 <= 1'b1;
+	ADD <= pc;
+	next_state <= `cpus_read5;
+	end
+
+	`cpus_read5: begin
+	RDn <= 1'b0;
+	WRn <= 1'b1;
+	next_state <= `cpus_read6;
+	end
+
+	`cpus_read6: begin
+	if(!READY) next_state <= `cpus_wait;
+	else begin
+	RDn <= 1'b1;
+	if(data_in == 8'h01 || data_in == 8'h11 || data_in == 8'h21 || data_in == 8'h31)begin//LXI
+		regfil[(data_in[5:3])] <= DATA;
+		pc <= pc + 1;
+		next_state <= `cpus_fetchi1;
+	end else if(data_in == 8'h32)begin //SDA
+		temp_reg_w <= DATA;
+		next_state <= `cpus_write1;
+	end else if(data_in == 8'h3A)begin//LDA
+		temp_reg_w <= DATA;
+		next_state <= `cpus_read7;
+	end else if(data_in == 8'h2A)begin//LHLD
+		temp_reg_w <= DATA;
+		next_state <= `cpus_read7;
+	end else if(data_in == 8'h22)begin//SHLD
+		temp_reg_w <= DATA;
+		next_state <= `cpus_write1;
+	end
+	end
+	end
+
+	`cpus_read7: begin
+	S0 <= 1'b0;
+	S1 <= 1'b1;
+	ADD <= {temp_reg_w,temp_reg_z};
+	next_state <= `cpus_read8;
+	end
+
+	`cpus_read8: begin
+	RDn <= 1'b0;
+	WRn <= 1'b1;
+	next_state <= `cpus_read9;
+	end
+
+	`cpus_read9: begin
+	if(!READY) next_state <= `cpus_wait;
+	else begin
+	RDn <= 1'b1;
+	if(data_in == 8'h2A)begin//LHLD
+		regfil[`reg_l] <= DATA;
+		next_state <= `cpus_read10;
+	end else if(data_in == 8'h3A)begin
+		regfil[`reg_a] <= DATA;
+		pc <= pc + 1;
+		next_state <= `cpus_fetchi1;
+		end
+	end
+	end
+
+	`cpus_read10: begin
+	S0 <= 1'b0;
+	S1 <= 1'b1;
+	ADD <= {temp_reg_w,temp_reg_z + 1};
+	next_state <= `cpus_read11;
+	end
+
+	`cpus_read11: begin
+	RDn <= 1'b0;
+	WRn <= 1'b1;
+	next_state <= `cpus_read12;
+	end
+
+	`cpus_read12: begin
+	if(!READY) next_state <= `cpus_wait;
+	else begin
+	RDn <= 1'b1;
+	regfil[`reg_h] <= DATA;
+	next_state <= `cpus_fetchi1;
+	end
+	end
+
 	`cpus_write1:begin
 	IO_Mn <= 1'b0;
 	S0 <= 1'b1;
 	S1 <= 1'b0;
-	if(data_in[7:3] == 6'b00110)begin //MOV immediate to memory
+	if(data_in[7:0] == 8'h36)begin //MOV immediate to memory
 		ADD <= {regfil[`reg_h],regfil[`reg_l]};
 		data_out <= temp_reg_z;
 	end else if(data_in[7:3] == 6'b01110)begin //MOV register to memory
@@ -189,6 +301,17 @@ always@(state)begin
 	end else if(data_in[7:6]==2'b00 && data_in[2:0]==2'b010) begin	//STAX: move accumulator to Mem[B or D,C or F]
 		ADD <= {regfil[data_in[5:3]],regfil[data_in[5:3] + 1]};
 		data_out <= accumulator;
+	end else if(data_in == 8'h32)begin			//STA
+		ADD <= (temp_reg_w << 8) +temp_reg_z;
+		data_out <= accumulator;
+	end else if(data_in == 8'h22 && numSHLDwrite == 0)begin			//STA
+		ADD <= {temp_reg_w,temp_reg_z};
+		data_out <= regfil[`reg_l];
+		numSHLDwrite ++;
+	end else if(data_in == 8'h22 && numSHLDwrite == 1)begin			//STA
+		ADD <= {temp_reg_w,temp_reg_z + 1};
+		data_out <= regfil[`reg_h];
+		numSHLDwrite = 0;
 	end
 	next_state <= `cpus_write2;
 	end
@@ -196,12 +319,14 @@ always@(state)begin
 	`cpus_write2:begin
 	WRn <= 1'b0;
 	RDn <= 1'b1;
+	
 	next_state <= `cpus_write3;
 	end
 
 	`cpus_write3:begin
 	WRn <= 1'b1;
 	pc <= pc + 1;
+	if(data_in == 8'h22 && numSHLDwrite == 1) next_state <= `cpus_write1;
 	next_state <= `cpus_fetchi1;
 	end
 	endcase
