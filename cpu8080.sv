@@ -19,9 +19,12 @@
 `define cpus_read10		6'h1B
 `define cpus_read11		6'h1C
 `define cpus_read12		6'h1F
-`define cpus_write1		6'h0e
-`define cpus_write2		6'h0f
-`define cpus_write3		6'h10
+`define cpus_write1		6'h20
+`define cpus_write2		6'h21
+`define cpus_write3		6'h22
+`define cpus_write4		6'h23
+`define cpus_write5		6'h24
+`define cpus_write6		6'h25
 `define cpus_wait		6'h0b
 
 `define reg_b	3'b000
@@ -302,16 +305,11 @@ always@(state)begin
 		ADD <= {regfil[data_in[5:3]],regfil[data_in[5:3] + 1]};
 		data_out <= accumulator;
 	end else if(data_in == 8'h32)begin			//STA
-		ADD <= (temp_reg_w << 8) +temp_reg_z;
+		ADD <= /*{temp_reg_z,temp_reg_w};*/temp_reg_z;
 		data_out <= accumulator;
-	end else if(data_in == 8'h22 && numSHLDwrite == 0)begin			//STA
+	end else if(data_in == 8'h22)begin			//
 		ADD <= {temp_reg_w,temp_reg_z};
 		data_out <= regfil[`reg_l];
-		numSHLDwrite ++;
-	end else if(data_in == 8'h22 && numSHLDwrite == 1)begin			//STA
-		ADD <= {temp_reg_w,temp_reg_z + 1};
-		data_out <= regfil[`reg_h];
-		numSHLDwrite = 0;
 	end
 	next_state <= `cpus_write2;
 	end
@@ -319,16 +317,37 @@ always@(state)begin
 	`cpus_write2:begin
 	WRn <= 1'b0;
 	RDn <= 1'b1;
-	
 	next_state <= `cpus_write3;
 	end
 
 	`cpus_write3:begin
 	WRn <= 1'b1;
 	pc <= pc + 1;
-	if(data_in == 8'h22 && numSHLDwrite == 1) next_state <= `cpus_write1;
+	if(data_in == 8'h22) next_state <= `cpus_write4;
+	else next_state <= `cpus_fetchi1;
+	end
+
+	`cpus_write4:begin
+	IO_Mn <= 1'b0;
+	S0 <= 1'b1;
+	S1 <= 1'b0;			//
+	ADD <= {temp_reg_w,temp_reg_z + 1};
+	data_out <= regfil[`reg_h];
+	next_state <= `cpus_write5;
+	end
+
+	`cpus_write5:begin
+	WRn <= 1'b0;
+	RDn <= 1'b1;
+	next_state <= `cpus_write6;
+	end
+
+	`cpus_write6:begin
+	WRn <= 1'b1;
+	pc <= pc + 1;
 	next_state <= `cpus_fetchi1;
 	end
+
 	endcase
 end
 assign DATA = (~WRn&~IO_Mn&RDn) ? data_out : 8'bzzzzzzzz;;
