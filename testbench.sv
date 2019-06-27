@@ -66,6 +66,15 @@ rst = 1;
 @(posedge clk);
 @(posedge clk);
 @(posedge clk);
+@(posedge clk);
+@(posedge clk);
+@(posedge clk);
+@(posedge clk);
+@(posedge clk);
+@(posedge clk);
+@(posedge clk);
+@(posedge clk);
+@(posedge clk);
 $stop;
 end
 
