@@ -86,6 +86,19 @@ logic popr ;
 logic poppsw;
 logic xthl ;
 logic sphl ;
+logic addr ;
+logic addm ;
+logic adi ;
+logic adcr ;
+logic adcm ;
+logic aci ;
+logic subr ;
+logic subm ;
+logic sui ;
+logic sbbr ;
+logic sbbm ;
+logic sbi ;
+logic inrr ;
 
 
 logic [5:0] next_state;
@@ -136,7 +149,8 @@ always@(state)begin
 	WRn <= 1'b1;
 	S1 <= 1'b1;
 	S0 <= 1'b1;
-	if(movrr) tempreg[`reg_z]<=regfil[instruction_register[2:0]];
+	if(movrr || addr || adcr || subr || sbbr) tempreg[`reg_z]<=regfil[instruction_register[2:0]];
+	else if(inrr) tempreg[`reg_z]<=regfil[instruction_register[5:3]];
 	else if(xchg)begin
 		regfil[`reg_h] <= regfil[`reg_d];
 		regfil[`reg_d] <= regfil[`reg_h];
@@ -153,6 +167,29 @@ always@(state)begin
 		regfil[`reg_l] <= regfil[`reg_e];
 		regfil[`reg_e] <= regfil[`reg_l];
 		xchg <= 1'b0;
+	end else if(addr || addm || adi)begin
+		regfil[`reg_a] <= regfil[`reg_a] + tempreg[`reg_z];
+		addr <= 1'b0;
+		addm <= 1'b0;
+		adi <= 1'b0;
+	end else if(adcr || adcm || aci)begin
+		regfil[`reg_a] <= regfil[`reg_a] + tempreg[`reg_z] + flag_reg[0];
+		adcr <= 1'b0;
+		adcm <= 1'b0;
+		aci <= 1'b0;
+	end else if(subr || subm || sui)begin
+		regfil[`reg_a] <= regfil[`reg_a] - tempreg[`reg_z];
+		subr <= 1'b0;
+		subm <= 1'b0;
+		sui <= 1'b0;
+	end else if(sbbr || sbbm || sbi)begin
+		regfil[`reg_a] <= regfil[`reg_a] - tempreg[`reg_z] - flag_reg[0];
+		sbbr <= 1'b0;
+		sbbm <= 1'b0;
+		sbi <= 1'b0;
+	end else if(inrr)begin
+		regfil[instruction_register[5:3]] <= tempreg[`reg_z] + 8'h01;
+		inrr <= 1'b0;
 	end
 	pc <= pc + 16'h0001;
 	next_state <= `cpus_fetchi3;
@@ -198,6 +235,14 @@ always@(state)begin
 			end else if(instruction_register[3:0] == 4'b1010)begin
 				stax <= 1'b1;
 				next_state <= `cpus_write1;				
+			end else if(instruction_register[2:0] == 3'b100)begin
+				if(instruction_register[5:3] == `reg_m)begin
+					inrm <= 1'b1;
+					next_state <= `cpus_read1;		//FINIRE
+				end else begin
+					inrr <= 1'b1;
+					next_state <= `cpus_fetchi1;
+				end			
 			end
 		end
 
@@ -213,6 +258,31 @@ always@(state)begin
 				next_state <= `cpus_fetchi1;
 			end
 		end
+
+		2'b10:begin
+			if(instruction_register[5:4] == 'b00)begin
+				if(instruction_register[2:0] == `reg_m)begin
+					if(instruction_register[3])adcm <= 1'b1;
+					else addm <= 1'b1;
+					next_state <= `cpus_read1;
+				end else begin
+					if(instruction_register[3])adcr <= 1'b1;
+					else addr <= 1'b1;
+					next_state <= `cpus_fetchi1;
+				end
+			end else if(instruction_register[5:4] == 'b01)begin
+				if(instruction_register[2:0] == `reg_m)begin
+					if(instruction_register[3]) sbbm <= 1'b1;
+					else subm <= 1'b1;
+					next_state <= `cpus_read1;
+				end else begin
+					if(instruction_register[3]) sbbr <= 1'b1;
+					else subr <= 1'b1;
+					next_state <= `cpus_fetchi1;
+				end
+			end
+		end
+
 		2'b11:begin					//XCHG
 			if(instruction_register[5:0] == 6'b101011) begin
 				xchg <= 1'b0;
@@ -237,6 +307,18 @@ always@(state)begin
 				if(instruction_register[5:4] == 2'b11) poppsw <= 1'b1;
 				else popr <= 1'b1;
 				next_state <= `cpus_read1;
+			end else if(instruction_register[5:0] == 6'b000110)begin
+				adi <= 1'b1;
+				next_state <= `cpus_read1;
+			end else if(instruction_register[5:0] == 6'b001110)begin
+				aci <= 1'b1;
+				next_state <= `cpus_read1;
+			end else if(instruction_register[5:0] == 6'b010110)begin
+				sui <= 1'b1;
+				next_state <= `cpus_read1;
+			end else if(instruction_register[5:0] == 6'b011110)begin
+				sbi <= 1'b1;
+				next_state <= `cpus_read1;
 			end
 		end
 		endcase
@@ -260,13 +342,13 @@ always@(state)begin
 	IO_Mn <= 1'b0;
 	S0 <= 1'b0;
 	S1 <= 1'b1;
-	if(movrm)begin
+	if(movrm || addm || adcm || subm || sbbm)begin
 		address_buffer <= regfil[`reg_h];
 		data_out <= regfil[`reg_l];
 	end else if(ldax)begin
 		address_buffer <= regfil[{instruction_register[5:4],1'b0}];
 		data_out <= regfil[{instruction_register[5:4],1'b0}+3'b001];
-	end else if(mvim || mvir || lxir || lxisp || lda || sta || lhld || shld || inport || outport)begin
+	end else if(mvim || mvir || lxir || lxisp || lda || sta || lhld || shld || inport || outport || adi || aci || sui || sbi)begin
 		address_buffer <= pc[15:8];
 		data_out <= pc[7:0];
 	end else if(popr || poppsw || xthl)begin
@@ -279,7 +361,7 @@ always@(state)begin
 	`cpus_read2: begin
 	RDn <= 1'b0;
 	WRn <= 1'b1;
-	if(lxir || lxisp || lda || sta || lhld || shld || inport || outport) pc <= pc + 16'h0001;
+	if(mvir || lxir || lxisp || lda || sta || lhld || shld || inport || outport || adi || aci || sui || sbi) pc <= pc + 16'h0001;
 	else if(popr || poppsw || xthl) sp <= sp + 16'h0001;
 	next_state <= `cpus_read3;
 	end
@@ -319,6 +401,9 @@ always@(state)begin
 		tempreg[`reg_w] <= DATA;
 		if(inport)  next_state <= `cpus_input1;
 		else next_state <= `cpus_output1;
+	end else if(addm || adi || adcm || aci || subm || sbbm || sui | sbi)begin
+		tempreg[`reg_z] <= DATA;
+		next_state <= `cpus_fetchi1;
 	end
 	end
 	end
