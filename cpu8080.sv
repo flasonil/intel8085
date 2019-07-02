@@ -14,17 +14,23 @@
 `define cpus_output1		6'h0B
 `define cpus_output2		6'h0C
 `define cpus_output3		6'h0D
-`define cpus_read1		6'h12
-`define cpus_read2		6'h13
-`define cpus_read3		6'h14
-`define cpus_read4		6'h15
-`define cpus_read5		6'h16
-`define cpus_read6		6'h17
-`define cpus_read7		6'h18
-`define cpus_read8		6'h19
-`define cpus_read9		6'h1A
-`define cpus_read10		6'h1B
-`define cpus_read11		6'h1C
+`define cpus_busidle1		6'h0E
+`define cpus_busidle2		6'h0F
+`define cpus_busidle3		6'h10
+`define cpus_busidle4		6'h11
+`define cpus_busidle5		6'h12
+`define cpus_busidle6		6'h13
+`define cpus_read1		6'h14
+`define cpus_read2		6'h15
+`define cpus_read3		6'h16
+`define cpus_read4		6'h17
+`define cpus_read5		6'h18
+`define cpus_read6		6'h19
+`define cpus_read7		6'h1A
+`define cpus_read8		6'h1B
+`define cpus_read9		6'h1C
+`define cpus_read10		6'h1D
+`define cpus_read11		6'h1E
 `define cpus_read12		6'h1F
 `define cpus_write1		6'h20
 `define cpus_write2		6'h21
@@ -63,7 +69,7 @@ output logic ALE,
 output logic [7:0] ADD,
 output logic [5:0] state
 );
-
+//MOVE,LOAD,STORE
 logic movrr ;
 logic movrm ;
 logic movmr ;
@@ -80,12 +86,14 @@ logic stax ;
 logic xchg ;
 logic inport ;
 logic outport ;
+//STACK
 logic pushr ;
 logic pushpsw ;
 logic popr ;
 logic poppsw;
 logic xthl ;
 logic sphl ;
+//ARITHMETIC
 logic addr ;
 logic addm ;
 logic adi ;
@@ -99,25 +107,59 @@ logic sbbr ;
 logic sbbm ;
 logic sbi ;
 logic inrr ;
-
+logic inrm ;
+logic dcrr ;
+logic dcrm ;
+logic inxrp;
+logic dcxrp;
+logic dadrp;
+//LOGICAL
+logic anar;
+logic anam;
+logic ani;
+logic xrar;
+logic xram;
+logic xri;
+logic orar;
+logic oram;
+logic ori;
+logic cmpr;
+logic cmpm;
+logic cmpi;
+//ROTATE
+logic rlc;
+logic rrc;
+logic ral;
+logic rar;
+//JUMP
+//CALL
+//RETURN
+//INPUT,OUTPUT
+//DAA
+//SPECIALS
 
 logic [5:0] next_state;
 logic [15:0] pc,address,sp;
-logic [7:0] data_in,data_out,flag_reg,instruction_register,address_buffer;
+logic [7:0] data_in,data_out,flag_reg,instruction_register,address_buffer,temporary_register;
 logic [7:0] regfil[0:7];
-logic [7:0] tempreg[0:1];
+logic [7:0] internalreg[0:1];
 
 //		DATA_in/DATA_out --------------->	ADDRESS/DATA BUFFER
 //		FLAG REGISTER
 // |	S	|	Z	|	XX	|	AC	|	XX	|	P	|	XX	|	Cy	|
 //
 
+//FINO A INXrp e DCXrp rivedere distinzione tra regz,regw e tempreg (stack,datamov e arithmetic)
+//registro dei flag non mai settato
+//controllare istruzione DAD
+//DAA non implementata
+
 always@(negedge clock)begin
 	if(reset_in) begin
 	state <= `cpus_idle;
 	pc <= 16'b0000000100000000;
 	regfil <= {8'h00,8'h00,8'h00,8'h00,8'h00,8'h00,8'h00,8'hAD};
-	tempreg <= {8'h00,8'h00};
+	internalreg <= {8'h00,8'h00};
 	RDn <= 1'bz;
 	WRn <= 1'bz;
 	IO_Mn <= 1'bz;
@@ -149,47 +191,88 @@ always@(state)begin
 	WRn <= 1'b1;
 	S1 <= 1'b1;
 	S0 <= 1'b1;
-	if(movrr || addr || adcr || subr || sbbr) tempreg[`reg_z]<=regfil[instruction_register[2:0]];
-	else if(inrr) tempreg[`reg_z]<=regfil[instruction_register[5:3]];
+	if(movrr) internalreg[`reg_z]<=regfil[instruction_register[2:0]];
 	else if(xchg)begin
 		regfil[`reg_h] <= regfil[`reg_d];
 		regfil[`reg_d] <= regfil[`reg_h];
-	end
+	end else if(inxrp || dcxrp)begin
+		if(instruction_register[5:4] == 2'b11) temporary_register <= sp[15:8];
+		else temporary_register <= regfil[{instruction_register[5:4],1'b0}];		
+	end else if(addr || adcr || subr || sbbr || anar || xrar || orar || cmpr) temporary_register <= regfil[instruction_register[2:0]];
+	else if(inrr || dcrr) temporary_register <= regfil[instruction_register[5:3]];
 	next_state <= `cpus_fetchi2;
 	end
 
 	`cpus_fetchi2: begin
 	RDn <= 1'b0;
 	if(movrr)begin
-		regfil[instruction_register[5:3]]<=tempreg[`reg_z];
+		regfil[instruction_register[5:3]]<=internalreg[`reg_z];
 		movrr <= 1'b0;
 	end else if(xchg)begin
 		regfil[`reg_l] <= regfil[`reg_e];
 		regfil[`reg_e] <= regfil[`reg_l];
 		xchg <= 1'b0;
 	end else if(addr || addm || adi)begin
-		regfil[`reg_a] <= regfil[`reg_a] + tempreg[`reg_z];
+		regfil[`reg_a] <= regfil[`reg_a] + temporary_register;
 		addr <= 1'b0;
 		addm <= 1'b0;
 		adi <= 1'b0;
 	end else if(adcr || adcm || aci)begin
-		regfil[`reg_a] <= regfil[`reg_a] + tempreg[`reg_z] + flag_reg[0];
+		regfil[`reg_a] <= regfil[`reg_a] + temporary_register + flag_reg[0];
 		adcr <= 1'b0;
 		adcm <= 1'b0;
 		aci <= 1'b0;
 	end else if(subr || subm || sui)begin
-		regfil[`reg_a] <= regfil[`reg_a] - tempreg[`reg_z];
+		regfil[`reg_a] <= regfil[`reg_a] - temporary_register;
 		subr <= 1'b0;
 		subm <= 1'b0;
 		sui <= 1'b0;
 	end else if(sbbr || sbbm || sbi)begin
-		regfil[`reg_a] <= regfil[`reg_a] - tempreg[`reg_z] - flag_reg[0];
+		regfil[`reg_a] <= regfil[`reg_a] - temporary_register - flag_reg[0];
 		sbbr <= 1'b0;
 		sbbm <= 1'b0;
 		sbi <= 1'b0;
 	end else if(inrr)begin
-		regfil[instruction_register[5:3]] <= tempreg[`reg_z] + 8'h01;
+		regfil[instruction_register[5:3]] <= temporary_register + 8'h01;
 		inrr <= 1'b0;
+	end else if(dcrr)begin
+		regfil[instruction_register[5:3]] <= temporary_register - 8'h01;
+		dcrr <= 1'b0;
+	end else if(inxrp)begin
+		if(instruction_register[5:4] == 2'b11) sp[15:8] <= temporary_register + flag_reg[0];
+		else regfil[{instruction_register[5:4],1'b0}] <= temporary_register + flag_reg[0];
+		flag_reg <= internalreg[`reg_z];
+		inxrp <= 1'b0;
+	end else if(anar || anam || ani)begin
+		regfil[`reg_a] <= regfil[`reg_a] & temporary_register ;
+		anar <= 1'b0;
+		anam <= 1'b0;
+		ani <= 1'b0;
+	end else if(xrar || xram || xri)begin
+		regfil[`reg_a] <= regfil[`reg_a] ^ temporary_register ;
+		xrar <= 1'b0;
+		xram <= 1'b0;
+		xri <= 1'b0;
+	end else if(orar || oram || ori)begin
+		regfil[`reg_a] <= regfil[`reg_a] | temporary_register ;
+		orar <= 1'b0;
+		oram <= 1'b0;
+		ori <= 1'b0;
+	end else if(cmpr || cmpm || cmpi)begin
+		/*  ACC - TEMP takes place and flags are affected  */
+		orar <= 1'b0;
+		oram <= 1'b0;
+		ori <= 1'b0;
+	end else if(rlc || ral)begin
+		if(ral) {flag_reg[0],regfil[`reg_a]} <= {regfil[`reg_a][7],regfil[`reg_a][6:0],flag_reg[0]};
+		else regfil[`reg_a] <= {regfil[`reg_a][6:0],regfil[`reg_a][7]};
+		rlc <= 1'b0;
+		ral <= 1'b0;
+	end else if(rrc || rar)begin
+		if(rar) {flag_reg[0],regfil[`reg_a]} <= {regfil[`reg_a][0],flag_reg[0],regfil[`reg_a][7:1]};
+		else regfil[`reg_a] <= {regfil[`reg_a][0],regfil[`reg_a][7:1]};
+		rrc <= 1'b0;
+		rar <= 1'b0;
 	end
 	pc <= pc + 16'h0001;
 	next_state <= `cpus_fetchi3;
@@ -232,17 +315,46 @@ always@(state)begin
 			end else if(instruction_register[3:0] == 4'b1010)begin
 				ldax <= 1'b1;
 				next_state <= `cpus_read1;				
-			end else if(instruction_register[3:0] == 4'b1010)begin
+			end else if(instruction_register[3:0] == 4'b0010)begin
 				stax <= 1'b1;
 				next_state <= `cpus_write1;				
+			end else if(instruction_register[3:0] == 4'b0011)begin
+				inxrp <= 1'b1;
+				next_state <= `cpus_fetchi5;				
+			end else if(instruction_register[3:0] == 4'b1011)begin
+				dcxrp <= 1'b1;
+				next_state <= `cpus_fetchi5;				
+			end else if(instruction_register[3:0] == 4'b1001)begin
+				dadrp <= 1'b1;
+				next_state <= `cpus_busidle1;				
 			end else if(instruction_register[2:0] == 3'b100)begin
 				if(instruction_register[5:3] == `reg_m)begin
 					inrm <= 1'b1;
-					next_state <= `cpus_read1;		//FINIRE
+					next_state <= `cpus_read1;
 				end else begin
 					inrr <= 1'b1;
 					next_state <= `cpus_fetchi1;
 				end			
+			end else if(instruction_register[2:0] == 3'b101)begin
+				if(instruction_register[5:3] == `reg_m)begin
+					dcrm <= 1'b1;
+					next_state <= `cpus_read1;
+				end else begin
+					dcrr <= 1'b1;
+					next_state <= `cpus_fetchi1;
+				end			
+			end else if(instruction_register[5:0] == 6'b000111)begin
+				rlc <= 1'b1;
+				next_state <= `cpus_fetchi1;				
+			end else if(instruction_register[5:0] == 6'b001111)begin
+				rrc <= 1'b1;
+				next_state <= `cpus_fetchi1;				
+			end else if(instruction_register[5:0] == 6'b010111)begin
+				ral <= 1'b1;
+				next_state <= `cpus_fetchi1;				
+			end else if(instruction_register[5:0] == 6'b011111)begin
+				rar <= 1'b1;
+				next_state <= `cpus_fetchi1;				
 			end
 		end
 
@@ -270,7 +382,7 @@ always@(state)begin
 					else addr <= 1'b1;
 					next_state <= `cpus_fetchi1;
 				end
-			end else if(instruction_register[5:4] == 'b01)begin
+			end else if(instruction_register[5:4] == 2'b01)begin
 				if(instruction_register[2:0] == `reg_m)begin
 					if(instruction_register[3]) sbbm <= 1'b1;
 					else subm <= 1'b1;
@@ -278,6 +390,38 @@ always@(state)begin
 				end else begin
 					if(instruction_register[3]) sbbr <= 1'b1;
 					else subr <= 1'b1;
+					next_state <= `cpus_fetchi1;
+				end
+			end else if(instruction_register[5:3] == 3'b100)begin
+				if(instruction_register[2:0] == `reg_m)begin
+					anam <= 1'b1;
+					next_state <= `cpus_read1;
+				end else begin
+					anar <= 1'b1;
+					next_state <= `cpus_fetchi1;
+				end
+			end else if(instruction_register[5:3] == 3'b101)begin
+				if(instruction_register[2:0] == `reg_m)begin
+					xram <= 1'b1;
+					next_state <= `cpus_read1;
+				end else begin
+					xrar <= 1'b1;
+					next_state <= `cpus_fetchi1;
+				end
+			end else if(instruction_register[5:3] == 3'b110)begin
+				if(instruction_register[2:0] == `reg_m)begin
+					oram <= 1'b1;
+					next_state <= `cpus_read1;
+				end else begin
+					orar <= 1'b1;
+					next_state <= `cpus_fetchi1;
+				end
+			end else if(instruction_register[5:3] == 3'b111)begin
+				if(instruction_register[2:0] == `reg_m)begin
+					cmpm <= 1'b1;
+					next_state <= `cpus_read1;
+				end else begin
+					cmpr <= 1'b1;
 					next_state <= `cpus_fetchi1;
 				end
 			end
@@ -319,6 +463,18 @@ always@(state)begin
 			end else if(instruction_register[5:0] == 6'b011110)begin
 				sbi <= 1'b1;
 				next_state <= `cpus_read1;
+			end else if(instruction_register[5:0] == 6'b100110)begin
+				ani <= 1'b1;
+				next_state <= `cpus_read1;
+			end else if(instruction_register[5:0] == 6'b101110)begin
+				xri <= 1'b1;
+				next_state <= `cpus_read1;
+			end else if(instruction_register[5:0] == 6'b110110)begin
+				ori <= 1'b1;
+				next_state <= `cpus_read1;
+			end else if (instruction_register[5:0] == 6'b111110)begin
+				cmpi <= 1'b1;
+				next_state <= `cpus_read1;
 			end
 		end
 		endcase
@@ -326,6 +482,11 @@ always@(state)begin
 
 	`cpus_fetchi5:begin
 	if(sphl) sp[7:0]<= regfil[`reg_l];
+	else if(inxrp || dcxrp)begin
+		if(instruction_register[5:4] == 2'b11) temporary_register <= sp[7:0];
+		else temporary_register <= regfil[{instruction_register[5:4],1'b0} + 3'b001];
+		internalreg[`reg_z] <= flag_reg;
+	end
 	next_state <= `cpus_fetchi6;
 	end
 
@@ -333,6 +494,14 @@ always@(state)begin
 	if(sphl)begin
 		sp[15:8]<= regfil[`reg_h];
 		sphl <= 1'b0;
+	end else if(inxrp)begin
+		if(instruction_register[5:4] == 2'b11) sp[7:0] <= temporary_register + 8'h01;
+		else regfil[{instruction_register[5:4],1'b0} + 3'b001] <= temporary_register + 8'h01;
+		next_state <= `cpus_fetchi1;
+	end else if(dcxrp)begin
+		if(instruction_register[5:4] == 2'b11) sp[7:0] <= temporary_register - 8'h01;
+		else regfil[{instruction_register[5:4],1'b0} + 3'b001] <= temporary_register - 8'h01;
+		next_state <= `cpus_fetchi1;
 	end
 	else sp <= sp - 16'h0001;
 	next_state <= `cpus_write1;
@@ -342,13 +511,13 @@ always@(state)begin
 	IO_Mn <= 1'b0;
 	S0 <= 1'b0;
 	S1 <= 1'b1;
-	if(movrm || addm || adcm || subm || sbbm)begin
+	if(movrm || addm || adcm || subm || sbbm || inrm || dcrm || anam || xram || oram || cmpm)begin
 		address_buffer <= regfil[`reg_h];
 		data_out <= regfil[`reg_l];
 	end else if(ldax)begin
 		address_buffer <= regfil[{instruction_register[5:4],1'b0}];
 		data_out <= regfil[{instruction_register[5:4],1'b0}+3'b001];
-	end else if(mvim || mvir || lxir || lxisp || lda || sta || lhld || shld || inport || outport || adi || aci || sui || sbi)begin
+	end else if(mvim || mvir || lxir || lxisp || lda || sta || lhld || shld || inport || outport || adi || aci || sui || sbi || ani || xri || ori)begin
 		address_buffer <= pc[15:8];
 		data_out <= pc[7:0];
 	end else if(popr || poppsw || xthl)begin
@@ -361,7 +530,7 @@ always@(state)begin
 	`cpus_read2: begin
 	RDn <= 1'b0;
 	WRn <= 1'b1;
-	if(mvir || lxir || lxisp || lda || sta || lhld || shld || inport || outport || adi || aci || sui || sbi) pc <= pc + 16'h0001;
+	if(mvir || lxir || lxisp || lda || sta || lhld || shld || inport || outport || adi || aci || sui || sbi || ani || xri || ori) pc <= pc + 16'h0001;
 	else if(popr || poppsw || xthl) sp <= sp + 16'h0001;
 	next_state <= `cpus_read3;
 	end
@@ -379,17 +548,17 @@ always@(state)begin
 		next_state <= `cpus_fetchi1;
 		mvir <= 1'b0;
 	end else if(mvim)begin
-		tempreg[`reg_z] <= DATA;
+		internalreg[`reg_z] <= DATA;
 		next_state <= `cpus_write1;
 	end else if(lxir || lxisp)begin
 		if(lxisp) sp[7:0] <= DATA;
 		else regfil[(instruction_register[5:3])+3'b001] <= DATA;
 		next_state <= `cpus_read4;
 	end else if(lda || sta || lhld || shld || xthl)begin
-		tempreg[`reg_z] <= DATA;
+		internalreg[`reg_z] <= DATA;
 		next_state <= `cpus_read4;
 	end else if(ldax)begin
-		tempreg[`reg_a] <= DATA;
+		internalreg[`reg_a] <= DATA;
 		next_state <= `cpus_fetchi1;
 		ldax <= 1'b0;
 	end else if(popr || poppsw)begin
@@ -397,13 +566,14 @@ always@(state)begin
 		else regfil[{instruction_register[5:4],1'b0}+3'b001] <= DATA;
 		next_state <= `cpus_read4;
 	end else if(inport || outport)begin
-		tempreg[`reg_z] <= DATA;
-		tempreg[`reg_w] <= DATA;
+		internalreg[`reg_z] <= DATA;
+		internalreg[`reg_w] <= DATA;
 		if(inport)  next_state <= `cpus_input1;
 		else next_state <= `cpus_output1;
-	end else if(addm || adi || adcm || aci || subm || sbbm || sui | sbi)begin
-		tempreg[`reg_z] <= DATA;
-		next_state <= `cpus_fetchi1;
+	end else if(addm || adi || adcm || aci || subm || sbbm || sui || sbi || inrm || dcrm || anam || ani || xram || xri || oram || ori || cmpm || cmpi)begin
+		temporary_register <= DATA;	//da rivedere
+		if(inrm || dcrm) next_state <= `cpus_write1;
+		else next_state <= `cpus_fetchi1;
 	end
 	end
 	end
@@ -440,11 +610,11 @@ always@(state)begin
 		lxir <= 1'b0;
 		lxisp <= 1'b0;
 	end else if(lda || lhld || xthl)begin
-		tempreg[`reg_w] <= DATA;
+		internalreg[`reg_w] <= DATA;
 		if(xthl) next_state <= `cpus_write1;  //FINIRE XTHL !!!!!!!!
 		else next_state <= `cpus_read7;
 	end else if(sta || shld)begin
-		tempreg[`reg_w] <= DATA;
+		internalreg[`reg_w] <= DATA;
 		next_state <= `cpus_write1;
 	end else if(popr || poppsw)begin
 		if(poppsw) regfil[`reg_a] <= DATA;
@@ -459,8 +629,8 @@ always@(state)begin
 	`cpus_read7: begin
 	S0 <= 1'b0;
 	S1 <= 1'b1;
-	address_buffer <= tempreg[`reg_w];
-	data_out <= tempreg[`reg_z];
+	address_buffer <= internalreg[`reg_w];
+	data_out <= internalreg[`reg_z];
 	next_state <= `cpus_read8;
 	end
 
@@ -488,8 +658,8 @@ always@(state)begin
 	`cpus_read10: begin
 	S0 <= 1'b0;
 	S1 <= 1'b1;
-	address_buffer <= tempreg[`reg_w];
-	data_out <= tempreg[`reg_z] + 8'b00000001;
+	address_buffer <= internalreg[`reg_w];
+	data_out <= internalreg[`reg_z] + 8'b00000001;
 	next_state <= `cpus_read11;
 	end
 
@@ -513,12 +683,12 @@ always@(state)begin
 	IO_Mn <= 1'b0;
 	S0 <= 1'b1;
 	S1 <= 1'b0;
-	if(movmr || mvim)begin
+	if(movmr || mvim || inrm || dcrm)begin
 		address_buffer <= regfil[`reg_h];
 		data_out <= regfil[`reg_l];
 	end else if(sta || shld)begin
-		address_buffer <= tempreg[`reg_w];
-		data_out <= tempreg[`reg_z];		
+		address_buffer <= internalreg[`reg_w];
+		data_out <= internalreg[`reg_z];		
 	end else if(stax)begin
 		address_buffer <= regfil[{instruction_register[5:4],1'b0}];
 		data_out <= regfil[{instruction_register[5:4],1'b0}+3'b001];
@@ -536,8 +706,13 @@ always@(state)begin
 		data_out <= regfil[instruction_register[2:0]];
 		movmr <= 1'b0;
 	end else if(mvim)begin
-		data_out <= tempreg[`reg_z];
+		data_out <= internalreg[`reg_z];
 		mvim <= 1'b0;
+	end else if(inrm || dcrm)begin
+		if(inrm) data_out <= internalreg[`reg_z] + 8'h01;
+		else if(dcrm) data_out <= internalreg[`reg_z] - 8'h01;
+		inrm <= 1'b0;
+		dcrm <= 1'b0;
 	end else if(sta || stax)begin
 		data_out <= regfil[`reg_a];
 		sta <= 1'b0;
@@ -554,7 +729,7 @@ always@(state)begin
 	WRn <= 1'b1;
 	if(shld) next_state <= `cpus_write4;	//PUSH
 	else if(pushr || pushpsw || xthl)begin
-		if(xthl) regfil[`reg_h] <= tempreg[`reg_w];
+		if(xthl) regfil[`reg_h] <= internalreg[`reg_w];
 		sp <= sp - 16'h0001;
 		next_state <= `cpus_write4;
 	end
@@ -566,13 +741,13 @@ always@(state)begin
 	S0 <= 1'b1;
 	S1 <= 1'b0;
 	if(shld)begin
-		/*if(tempreg[`reg_z] == 8'hFF)begin
+		/*if(internalreg[`reg_z] == 8'hFF)begin
 			data_out <= 8'h00;
-			address_buffer <= tempreg[`reg_w]++;
+			address_buffer <= internalreg[`reg_w]++;
 		end else begin
-			data_out <= tempreg[`reg_z]++;
-			address_buffer <= tempreg[`reg_w];
-		end*/{address_buffer,data_out} <= {tempreg[`reg_w],tempreg[`reg_z]} + 16'h0001;
+			data_out <= internalreg[`reg_z]++;
+			address_buffer <= internalreg[`reg_w];
+		end*/{address_buffer,data_out} <= {internalreg[`reg_w],internalreg[`reg_z]} + 16'h0001;
 	end else if(pushr || pushpsw || xthl)begin
 		address_buffer <= sp[15:8];
 		data_out <= sp[7:0];
@@ -601,7 +776,7 @@ always@(state)begin
 	`cpus_write6:begin
 	WRn <= 1'b1;
 	if(xthl)begin
-		regfil[`reg_l] <= tempreg[`reg_z];
+		regfil[`reg_l] <= internalreg[`reg_z];
 		xthl <= 1'b0;
 	end
 	next_state <= `cpus_fetchi1;
@@ -613,8 +788,8 @@ always@(state)begin
 	S1 <= 1'b1;
 	RDn <= 1'b1;
 	WRn <= 1'b1;
-	address_buffer <= tempreg[`reg_w];
-	data_out <= tempreg[`reg_z];
+	address_buffer <= internalreg[`reg_w];
+	data_out <= internalreg[`reg_z];
 	next_state <= `cpus_input2;
 	end
 
@@ -622,9 +797,51 @@ always@(state)begin
 	RDn <= 1'b0;
 	end
 
+	`cpus_busidle1:begin
+	IO_Mn <= 1'b0;
+	S0 <= 1'b0;
+	S1 <= 1'b1;
+	internalreg[`reg_w] <= regfil[`reg_a];
+	internalreg[`reg_z] <= flag_reg;
+	next_state <= `cpus_busidle2;
+	end
+
+	`cpus_busidle2:begin
+	if(instruction_register[5:4] == 2'b11) regfil[`reg_a] <= sp[7:0];
+	else regfil[`reg_a] <= regfil[{instruction_register[5:4],1'b0}+3'b001];
+	temporary_register <= regfil[`reg_l];
+	next_state <= `cpus_busidle3;
+	end
+
+	`cpus_busidle3:begin
+	regfil[`reg_l] <= regfil[`reg_a] + temporary_register;
+	next_state <= `cpus_busidle4;
+	end
+
+	`cpus_busidle4:begin
+	IO_Mn <= 1'b0;
+	S0 <= 1'b0;
+	S1 <= 1'b1;
+	if(instruction_register[5:4] == 2'b11) regfil[`reg_a] <= sp[15:8];
+	else regfil[`reg_a] <= regfil[{instruction_register[5:4],1'b0}];
+	temporary_register <= regfil[`reg_h];
+	next_state <= `cpus_busidle5;
+	end
+
+	`cpus_busidle5:begin
+	regfil[`reg_h] <= regfil[`reg_a] + temporary_register + flag_reg[0];
+	next_state <= `cpus_busidle6;
+	end
+
+	`cpus_busidle6:begin
+	regfil[`reg_a] <= internalreg[`reg_w];
+	flag_reg <= internalreg[`reg_z];
+	next_state <= `cpus_fetchi1;
+	end
+
 	endcase
 end
-//assign data_out = ALE ? pc[7:0] : data_out;
+
 assign ADD 	= address_buffer;
 assign DATA 	= ((~WRn&~IO_Mn&RDn)|ALE) ? data_out : 8'bzzzzzzzz;;
 endmodule
