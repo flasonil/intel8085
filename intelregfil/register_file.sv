@@ -86,17 +86,11 @@ end
 end
 
 always@(negedge clk)begin
-//	if(!rreg_rd&&lreg_rd) datao <= outreg[15:8];
-//	else if(rreg_rd&&!lreg_rd) datao <= outreg[7:0];
-//	else datao <= 8'bzzzzzzzz;
-
-	ADDRESS <= address_latch;
-end
-
-always@(outreg)begin
 	if(!rreg_rd&&lreg_rd) datao <= outreg[15:8];
 	else if(rreg_rd&&!lreg_rd) datao <= outreg[7:0];
 	else datao <= 8'bzzzzzzzz;
+
+	ADDRESS <= address_latch;
 end
 
 assign data_latchl = dreg_wr ? incdec_out[15:8] : DATA;
