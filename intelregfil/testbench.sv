@@ -78,7 +78,6 @@ sel_0_fe = 0;
 fe_0_to_act = 0;
 
 #9 rst = 0;
-
 @(posedge clk);
 @(negedge clk);			//T1/0
 
@@ -91,9 +90,11 @@ pc_rw = 1;
 dreg_wr = 1;
 @(negedge clk);			//T3/0
 dbus_to_instr_reg = 1;
+dreg_wr = 0;
 @(posedge clk);			//T3/1
 dbus_to_instr_reg = 0;
 @(negedge clk);			//T4/0
+//dbus_to_instr_reg = 0;
 @(posedge clk);			//T4/1
 pc_rw = 1;
 dreg_wr = 0;
@@ -108,12 +109,15 @@ de_rw = 1;
 pc_rw = 0;
 rreg_rd = 1;
 dreg_rd = 0;
-write_dbus_to_alu_tmp = 1;
+
+
+@(negedge clk);			//T2/0
 sel_0_fe = 1;
 fe_0_to_act = 0;
-@(negedge clk);			//T2/0
-//write_dbus_to_alu_tmp = 1;
+select_ncarry_1 = 1;
+write_dbus_to_alu_tmp = 1;
 @(posedge clk);			//T2/1
+rreg_rd = 0;
 write_dbus_to_alu_tmp = 0;
 pc_rw = 1;
 dreg_wr = 1;
@@ -121,30 +125,20 @@ de_rw = 0;
 dreg_rd = 0;
 @(negedge clk);			//T3/0
 dbus_to_instr_reg = 1;
+dreg_wr = 0;
 @(posedge clk);			//T3/1
 //sel_0_fe = 1;
 //fe_0_to_act = 0;
-select_ncarry_1 = 1;
+dbus_to_instr_reg = 0;
+bc_rw = 1;
 alu_to_a = 0;
 sel_alu_a = 1;
 alu_a_to_dbus = 1;
-@(negedge clk);
-@(posedge clk);
-@(negedge clk);
-@(posedge clk);
-dreg_rd = 0;
-dreg_wr = 1;
-
-@(posedge clk);
-@(posedge clk);
-dreg_wr = 0;
-lreg_rd = 1;
-@(posedge clk);
-lreg_rd = 0;
 rreg_wr = 1;
 pc_rw = 0;
-wz_rw = 1;
-@(posedge clk);
+dreg_wr = 0;
+@(negedge clk);
+
 @(posedge clk);
 $stop;
 
