@@ -60,7 +60,7 @@ module aluplusreg
 logic [7:0] accumulator,act,tmp,alures,alures_acc,flag_register;
 
 alu8bit alu(
-	.in1(act),.in2(tmp),.out(alures),
+	.in1(act),.in2(tmp),.out(alures),.carry_in(1'b1),
 	.select_op1(select_op1),
 	.select_op2(select_op2),
 	.select_neg(select_neg),
@@ -69,19 +69,19 @@ alu8bit alu(
 	.shift_right_in(shift_right_in)
 );
 
-always@(negedge clk)begin
+always@(posedge clk)begin
 if(!sel_0_fe)begin
 	if(dbus_to_act) act <= dbus_act;
 	else if(a_to_act) act <= accumulator;
 end else if(sel_0_fe)begin
-		if(fe_0_to_act) tmp <= 8'hfe;
-		else if(!fe_0_to_act) tmp <= 8'h00;
+		if(fe_0_to_act) act <= 8'hfe;
+		else if(!fe_0_to_act) act <= 8'h00;
 	end
 end
 always@(negedge clk)begin
 	if(alu_to_a) accumulator <= alures;
 end
-always@(negedge clk)begin
+always@(posedge clk)begin
 	if(write_dbus_to_alu_tmp) tmp <= dbus_tmp;
 end
 
