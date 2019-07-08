@@ -1,49 +1,36 @@
-//module registerpair
-//(
-//	inout logic [15:0] DATA,
-//	input logic /*oe,we,*/reg_rw,
-//
-//	input logic clk,rst
-//);
-//logic [15:0] value,datao;
-//
-//always@(negedge clk)begin
-//	if(rst) value <= 16'h0000;
-//	else begin
-//		if(!reg_rw) value <= DATA;	//0 = write
-//		else datao <= value;		//1 = read
-//	end
-//end
-//assign DATA = reg_rw ? datao : 16'bzzzzzzzzzzzzzzzz;
-//endmodule
-
 module registerfile
 (
-	inout logic [7:0] DATA,
-
 	input logic clk,rst,
+
 	input logic bc_rw,de_rw,hl_rw,wz_rw,pc_rw,sp_rw,
 	input logic rreg_rd,lreg_rd,rreg_wr,lreg_wr,
-	input logic dreg_wr,dreg_rd,
+	input logic dreg_wr,dreg_rd,dreg_dec,dreg_inc,dreg_cnt,dreg_cnt2,
 
-	output logic [15:0] ADDRESS
+	inout logic [7:0] DATA,
+	output logic [15:0] ADDRESS,
+	output logic carry_out
 );
 logic [15:0] outreg;
 logic [7:0]regbusr,regbusl,datao,data_latchr,data_latchl;
-logic [15:0] bc,de,hl,wz,pc,sp,address_latch;
+logic [15:0] bc,de,hl,wz,pc,sp,address_latch,incdec_out;
+
+initial begin
+incdec_out = 16'h0012;
+end
 
 always@(negedge clk)begin
 if(rst)begin
 bc <= 16'h0000;
-de <= 16'h0000;
+de <= 16'h00AA;
 hl <= 16'h0000;
 wz <= 16'h0000;
-pc <= 16'h0000;
+pc <= 16'h0011;
 sp <= 16'h0000;
+outreg <= 16'h0000;
 end
 end
 
-always@(posedge rreg_wr)begin
+always@(posedge rreg_wr,posedge dreg_wr)begin
 if(bc_rw) bc[7:0] <= regbusr;
 else if(de_rw) de[7:0] <= regbusr;
 else if(hl_rw) hl[7:0] <= regbusr;
@@ -52,7 +39,7 @@ else if(pc_rw) pc[7:0] <= regbusr;
 else if(sp_rw) sp[7:0] <= regbusr;
 end
 
-always@(posedge lreg_wr)begin
+always@(posedge lreg_wr,posedge dreg_wr)begin
 if(bc_rw) bc[15:8] <= regbusl;
 else if(de_rw) de[15:8] <= regbusl;
 else if(hl_rw) hl[15:8] <= regbusl;
@@ -80,25 +67,44 @@ else if(sp_rw) outreg[15:8] <= sp[15:8];
 end
 
 always@(posedge dreg_rd)begin
-if(bc_rw) address_latch <= bc[15:8];
-else if(de_rw) address_latch <= de[15:8];
-else if(hl_rw) address_latch <= hl[15:8];
-else if(wz_rw) address_latch <= wz[15:8];
-else if(pc_rw) address_latch <= pc[15:8];
-else if(sp_rw) address_latch <= sp[15:8];
+if(bc_rw) address_latch <= bc;
+else if(de_rw) address_latch <= de;
+else if(hl_rw) address_latch <= hl;
+else if(wz_rw) address_latch <= wz;
+else if(pc_rw) address_latch <= pc;
+else if(sp_rw) address_latch <= sp;
+end
+
+always@(address_latch)begin
+if(dreg_inc&&!dreg_dec)begin
+	if(dreg_cnt&&!dreg_cnt2) {carry_out,incdec_out} <= address_latch + 16'h0001;
+	else if(!dreg_cnt&&dreg_cnt2) {carry_out,incdec_out} <= address_latch + 16'h0002;
+end else if(!dreg_inc&&dreg_dec)begin
+	if(dreg_cnt&&!dreg_cnt2) {carry_out,incdec_out} <= address_latch - 16'h0001;
+	else if(!dreg_cnt&&dreg_cnt2) {carry_out,incdec_out} <= address_latch - 16'h0002;
+end
 end
 
 always@(negedge clk)begin
-	if(!rreg_rd&&lreg_rd) datao <= outreg[15:7];
+//	if(!rreg_rd&&lreg_rd) datao <= outreg[15:8];
+//	else if(rreg_rd&&!lreg_rd) datao <= outreg[7:0];
+//	else datao <= 8'bzzzzzzzz;
+
+	ADDRESS <= address_latch;
+end
+
+always@(outreg)begin
+	if(!rreg_rd&&lreg_rd) datao <= outreg[15:8];
 	else if(rreg_rd&&!lreg_rd) datao <= outreg[7:0];
 	else datao <= 8'bzzzzzzzz;
 end
 
-assign data_latchl = dreg_wr ? address_latch[15:8] : DATA;
+assign data_latchl = dreg_wr ? incdec_out[15:8] : DATA;
 assign regbusl = ((!rreg_wr&&lreg_wr)||dreg_wr) ? data_latchl : 8'bzzzzzzzz;
-assign data_latchr = dreg_wr ? address_latch[7:0] : DATA;
+assign data_latchr = dreg_wr ? incdec_out[7:0] : DATA;
 assign regbusr = ((rreg_wr&&!lreg_wr)||dreg_wr) ? data_latchr : 8'bzzzzzzzz;
+
 assign DATA = (rreg_rd || lreg_rd)?datao : 8'bzzzzzzzz;
 
-assign ADDRESS = address_latch;
+//assign ADDRESS = address_latch;
 endmodule
