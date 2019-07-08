@@ -18,8 +18,13 @@ module top
 	output logic [15:0] address
 );
 wire [7:0] data; //DBUS
+logic [7:0] instruction_register;
 
-assign data = (!dreg_wr&&(lreg_wr||rreg_wr))&&(dbus_to_instr_reg) ? 8'h43 : 8'bzzzzzzzz;
+always@(posedge dbus_to_instr_reg)begin
+	instruction_register <= data;
+end
+
+assign data = /*(!dreg_wr&&(lreg_wr||rreg_wr))&&*/(dbus_to_instr_reg) ? 8'h43 : 8'bzzzzzzzz;
 
 registerfile U1(
 	.ADDRESS(address),
