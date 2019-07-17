@@ -1,7 +1,7 @@
 `timescale 1ns/1ps
 module registerfile
 (
-	input logic clk,rst,
+	input logic phi1,phi2,rst,
 
 	input logic bc_rw,de_rw,hl_rw,wz_rw,pc_rw,sp_rw,
 	input logic rreg_rd,lreg_rd,rreg_wr,lreg_wr,
@@ -17,11 +17,11 @@ logic [15:0] bc,de,hl,wz,pc,sp,address_latch,incdec_out;
 
 initial begin
 incdec_out = 16'h0101;
-address_latch = 16'h0100;
-#30 pc = incdec_out;
+//address_latch = pc;
+//#30 pc = incdec_out;
 end
 
-always@(negedge clk)begin
+always@(negedge phi2)begin
 if(rst)begin
 bc <= 16'h0000;
 de <= 16'h00AA;
@@ -29,7 +29,9 @@ hl <= 16'h0000;
 wz <= 16'h0000;
 pc <= 16'h0100;
 sp <= 16'h0000;
+address_latch <= 16'h0100;
 outreg <= 16'h0000;
+carry_out <= 1'b0;
 end
 end
 
@@ -88,7 +90,7 @@ end else if(!dreg_inc&&dreg_dec)begin
 end
 end
 
-always@(/*negedge clk,*/posedge clk)begin
+always@(/*negedge clk,*/posedge phi1)begin
 	if(!rreg_rd&&lreg_rd) datao <= outreg[15:8];
 	else if(rreg_rd&&!lreg_rd) datao <= outreg[7:0];
 	else datao <= 8'bzzzzzzzz;

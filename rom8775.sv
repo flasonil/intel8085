@@ -19,7 +19,7 @@ always@(negedge CLK)begin
 	else/* datao = 8'h43;*/
 	case(ADD)
 
-	`include "test2.rom" // get contents of memory
+	`include "test.rom" // get contents of memory
 	default datao = 8'h76; // hlt
 
 endcase

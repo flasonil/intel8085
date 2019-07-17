@@ -47,7 +47,7 @@ endmodule
 
 module aluplusreg
 (
-	input logic clk,
+	input logic phi1,phi2,rst,
 	input logic select_op1,select_op2,select_neg,select_ncarry_1,select_shift_right,
 	input logic shift_right_in,
 	input logic [7:0] dbus_tmp,dbus_act,
@@ -69,7 +69,15 @@ alu8bit alu(
 	.shift_right_in(shift_right_in)
 );
 
-always@(negedge clk)begin
+always@(negedge phi2)begin
+if(rst)begin
+accumulator <= 8'h00;
+act <= 8'h00;
+tmp <= 8'h00;
+end
+end
+
+always@(posedge phi1)begin
 if(!sel_0_fe)begin
 	if(dbus_to_act) act <= dbus_act;
 	else if(a_to_act) act <= accumulator;
@@ -78,10 +86,10 @@ end else if(sel_0_fe)begin
 		else if(!fe_0_to_act) act <= 8'h00;
 	end
 end
-always@(negedge clk)begin
+always@(posedge phi1)begin
 	if(alu_to_a) accumulator <= alures;
 end
-always@(negedge clk)begin
+always@(posedge phi1)begin
 	if(write_dbus_to_alu_tmp) tmp <= dbus_tmp;
 end
 

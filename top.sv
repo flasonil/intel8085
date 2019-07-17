@@ -1,73 +1,55 @@
 module top
 (
-	input logic rst,clk,
-	//input logic [7:0] data,
-	//REGISTER FILE CONTROL
-//	input logic bc_rw,de_rw,hl_rw,wz_rw,pc_rw,sp_rw,
-//	input logic rreg_rd,lreg_rd,rreg_wr,lreg_wr,
-//	input logic dreg_wr,dreg_rd,dreg_inc,dreg_dec,dreg_cnt,dreg_cnt2,
-
-	//ALU CONTROL
-//	input logic select_op1,select_op2,select_neg,select_ncarry_1,select_shift_right,
-//	input logic shift_right_in,
-//	input logic dbus_to_act,a_to_act,alu_to_a,sel_alu_a,alu_a_to_dbus,write_dbus_to_alu_tmp,
-//	input logic sel_0_fe,fe_0_to_act,
-//
-	//CONTROL MEMORY/IO FROM TESTBENCH
-	input logic S0,
-	input logic S1,
-	input logic IOMn,
-	input logic RDn,
-	input logic WRn,
-	input logic ALE,
-//
-//	//CONTROL MEMORY/IO
-//	output logic S0,
-//	output logic S1,
-//	output logic IOMn,
-//	output logic RDn,
-//	output logic WRn,
-//	output logic ALE,
-//
-	//INSTR REG CONTROL
-	input logic dbus_to_instr_reg,
-
+	input logic x1,x2,resetn_in,
 
 	output logic [7:0] haddress,
-	inout logic [7:0] laddress_data
+	inout logic [7:0] laddress_data,
+
+	output logic S0,
+	output logic S1,
+	output logic IOMn,
+	output logic RDn,
+	output logic WRn,
+	output logic ALE,
+
+	output logic clk_out,reset_out
 );
+//logic S0int,S1int,RDnint,WRnint,ALEint,IOMnint,dbus_to_instr_reg;
+logic dbus_to_instr_reg;
+
+logic phi1,phi2,reset;
+logic[36:0] control;
+
 wire [7:0] dbus; //DBUS
 logic [7:0] instruction_register,data_out;
 logic [15:0] address;
 
-logic [30:0] control;
-logic [7:0] microcode_pc;
-
-initial begin
-control = 31'b0000000000000000000000000000000;
-end
-
-always@(negedge dbus_to_instr_reg)begin
-	if(instruction_register == 8'h43) microcode_pc <= 8'h00;
-end
-
-always@(posedge clk,negedge clk)begin
-	if(!dbus_to_instr_reg) microcode_pc++;
-	case(microcode_pc)
-	`include "rommicrocode.rom"
-	endcase
-end
-
-always@(negedge clk)begin
+always@(dbus or dbus_to_instr_reg)begin
 	if(dbus_to_instr_reg) instruction_register <= dbus;
 end
 
-assign dbus = (dbus_to_instr_reg) ? laddress_data : 8'bzzzzzzzz;
+clockgen clockgen(.x1(x1),.x2(x2),.resetn_in(resetn_in),.phi1(phi1),.phi2(phi2),.reset(reset),.clk_out(clk_out),.reset_out(reset_out));
 
-registerfile U1(
+decoding decoding(
+	.phi1(phi1),
+	.phi2(phi2),
+	.reset(reset),
+	.control(control),
+//	.S1(S1),
+//	.S0(S0),
+//	.WRn(WRn),
+//	.RDn(RDn),
+//	.ALE(ALE),
+//	.IOMn(IOMn),
+	.dbus_to_instr_reg(dbus_to_instr_reg),
+	.instruction(instruction_register)
+);
+
+registerfile registerfile(
+	.rst(reset),
 	.ADDRESS(address),
-	.clk(clk),
-	.rst(rst),
+	.phi1(phi1),
+	.phi2(phi2),
 	.DATA(dbus),
 	.bc_rw(/*bc_rw*/control[1]),
 	.de_rw(/*de_rw*/control[2]),
@@ -88,7 +70,9 @@ registerfile U1(
 );
 
 aluplusreg U2(
-	.clk(clk),
+	.phi1(phi1),
+	.phi2(phi2),
+	.rst(reset),
 	.select_op1(/*select_op1*/control[17]),
 	.select_op2(/*select_op2*/control[18]),
 	.select_neg(/*select_neg*/control[19]),
@@ -111,21 +95,18 @@ aluplusreg U2(
 
 );
 
-//assign S0 = S0tb;
-//assign S1 = S1tb;
-//assign IOMn = IOMntb;
-//assign ALE = ALEtb;
-//assign RDn = RDntb;
-//assign WRn = WRntb;
-always@(posedge ALE)begin
- data_out <= 8'h00;
+always@(posedge control[36])begin
+ data_out <= address[7:0];
 end
 
-assign laddress_data = ((!WRn&!IOMn&RDn)|ALE) ? data_out : 8'bzzzzzzzz;
+assign dbus = (dbus_to_instr_reg) ? laddress_data : 8'bzzzzzzzz;
+assign laddress_data = ((!control[35]&!control[33]&control[34])|control[36]) ? data_out : 8'bzzzzzzzz;
 assign haddress = address[15:8];
 
+assign S0 = control[31];
+assign S1 = control[32];
+assign IOMn = control[33];
+assign RDn = control[34];
+assign WRn = control[35];
+assign ALE = control[36];
 endmodule
-
-
-
-
