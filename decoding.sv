@@ -1,3 +1,23 @@
+`define ins_skp_rx 5
+`define ins_skp_r1 4
+`define ins_lng 3
+`define ins_e1 2
+`define ins_e2 1
+`define ins_e3 0
+
+`define T1 	7'b1000000
+`define T2 	7'b0100000
+`define T3 	7'b0010000
+`define T4 	7'b0001000
+`define T5 	7'b0000100
+`define T6 	7'b0000010
+`define Treset 	7'b0000001
+
+`define M1	5'b10000
+`define R1	5'b01000
+`define R2	5'b00100
+`define W1	5'b00010
+`define W2	5'b00001
 
 
 module decoding
@@ -16,11 +36,10 @@ module decoding
 	output logic dbus_to_instr_reg
 );
 
-//logic ins_m1,ins_r1,ins_r2,ins_w1,ins_w2;
-//logic t1,t2,t3,t4,t5,t6,t_reset;
+logic hld_cyc,nxt_ins,m1_end,m1;
 
 logic[4:0] current_mc/* = {ins_m1,ins_r1,ins_r2,ins_w1,ins_w2}*/;
-logic[4:0] next_mc/* = {ins_m1,ins_r1,ins_r2,ins_w1,ins_w2}*/;
+logic[4:0] next_mc,next_mc_atphi1/* = {ins_m1,ins_r1,ins_r2,ins_w1,ins_w2}*/;
 
 logic[6:0] current_t/* = {t1,t2,t3,t4,t5,t6,t_reset}*/;
 logic[6:0] next_t/* = {t1,t2,t3,t4,t5,t6,t_reset}*/;
@@ -31,7 +50,8 @@ logic[47:0] group;
 logic[5:0] timing;
 
 initial begin
-current_mc = 5'b00000;
+current_mc = `M1;
+next_mc = `M1;
 current_t = 7'b0000001;
 next_t = 7'b1000000;
 microcode_pc = 8'b00000000;
@@ -42,34 +62,87 @@ timingrom timingrom(.group(group),.timing(timing));
 
 always@(posedge phi2)begin
 	if(reset)begin
-	next_t <= 7'b0000001;
+	next_t <= `Treset;
 	end
 	else begin
-		case(current_mc)
-		5'b10000:begin
+		case(next_mc)
+		`M1:begin
 			case(next_t)
-			7'b0000001: next_t <= 7'b1000000;
+			`Treset: next_t <= `T1;
 
-			7'b1000000: next_t <= 7'b0100000;
-			7'b0100000: next_t <= 7'b0010000;
-			7'b0010000: next_t <= 7'b0001000;
-			7'b0001000: next_t <= 7'b0000100;
-			7'b0000100: next_t <= 7'b0000010;
-			7'b0000010: next_t <= 7'b1000000;
+			`T1: next_t <= `T2;
+			`T2: next_t <= `T3;
+			`T3: next_t <= `T4;
+			`T4:begin
+				if(timing[`ins_lng])next_t <= `T5;
+				else begin 
+					next_t <= `T1;
+					if(timing[`ins_skp_rx]) next_mc <= `W1;
+					else if(timing[`ins_skp_r1]) next_mc <= `R2;
+					else if(timing[`ins_e1]&timing[`ins_e2]&timing[`ins_e3]) next_mc <= `M1;
+				end
+			end
+			`T5: next_t <= `T6;
+			`T6: next_t <= `T1; //NEXT MC ?
+			endcase
+		end
+		`R1:begin
+			case(next_t)
+			`T1: next_t <= `T2;
+			`T2: next_t <= `T3;
+			`T3:begin
+				next_t <= `T1;
+				if(timing[`ins_e1]&~timing[`ins_e2]&~timing[`ins_e3]) next_mc <= `M1;
+				else next_mc <= `R2;
+			end
+			endcase
+		end
+		`R2:begin
+			case(next_t)
+			`T1: next_t <= `T2;
+			`T2: next_t <= `T3;
+			`T3:begin
+				next_t <= `T1;
+				if(timing[`ins_e1]&~timing[`ins_e2]&timing[`ins_e3]) next_mc <= `M1;
+				else next_mc <= `W1;
+			end
+			endcase
+		end
+		`W1:begin
+			case(next_t)
+			`T1: next_t <= `T2;
+			`T2: next_t <= `T3;
+			`T3:begin
+				next_t <= `T1;
+				if(timing[`ins_e1]&timing[`ins_e2]&~timing[`ins_e3]) next_mc <= `M1;
+				else next_mc <= `W2;
+			end
+			endcase
+		end
+		`W2:begin
+			case(next_t)
+			`T1: next_t <= `T2;
+			`T2: next_t <= `T3;
+			`T3:begin
+				next_t <= `T1;
+				if(~timing[`ins_e1]&timing[`ins_e2]&timing[`ins_e3]) next_mc <= `M1;
+			end
 			endcase
 		end
 		endcase
 	end
+	//m1 <= (~hld_cyc&nxt_ins)|(hld_cyc&next_mc_atphi1[4]);
 end
 
 always@(posedge phi1)begin
 	current_t <= next_t;
-
+	current_mc <= next_mc;
+	next_mc_atphi1 <= next_mc;
+	hld_cyc = (~reset&~m1_end&~(next_t[4]&~next_mc[4]));
+	nxt_ins = (((next_mc[3]&~timing[`ins_e2]&~timing[`ins_e3])|(next_mc[2]&~timing[`ins_e2]&timing[`ins_e3])|(next_mc[1]&timing[`ins_e2]&~timing[`ins_e3]))&next_t[4])|reset|(m1_end&timing[`ins_e1]&timing[`ins_e2]&timing[`ins_e3]);
 end
-
-always@(posedge phi1)begin
-	if(!reset) current_mc <= 5'b10000;
-end
+//assign nxt_ins = (((next_mc[3]&~timing[`ins_e2]&~timing[`ins_e3])|(next_mc[2]&~timing[`ins_e2]&timing[`ins_e3])|(next_mc[1]&timing[`ins_e2]&~timing[`ins_e3]))&next_t[4])|reset|(m1_end&timing[`ins_e1]&timing[`ins_e2]&timing[`ins_e3]);
+assign m1_end = next_t[1]|(next_t[3]&~timing[`ins_lng]);
 
 always@(posedge phi1,posedge phi2)begin
 	if(reset) microcode_pc <= 1'b0;

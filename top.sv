@@ -95,8 +95,8 @@ aluplusreg U2(
 
 );
 
-always@(posedge control[36])begin
- data_out <= address[7:0];
+always@(control[36] or address[7:0])begin
+ if(control[36]) data_out <= address[7:0];
 end
 
 assign dbus = (dbus_to_instr_reg) ? laddress_data : 8'bzzzzzzzz;
