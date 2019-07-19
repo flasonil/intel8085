@@ -24,22 +24,25 @@ module decoding
 (
 	input logic phi1,phi2,reset,
 	input logic [7:0] instruction,
-	output logic[36:0] control,
+	output logic[35:0] control,
 
 //	output logic S0,
 //	output logic S1,
 //	output logic IOMn,
 //	output logic RDn,
 //	output logic WRn,
-//	output logic ALE,
+	output logic ALE,
 
+	output logic bc_rw,de_rw,hl_rw,pc_rw,
+	output logic dreg_wr,
 	output logic dbus_to_instr_reg
 );
 
-logic hld_cyc,nxt_ins,m1_end,m1;
+logic hld_cyc,nxt_ins,m1_end;
+
 
 logic[4:0] current_mc/* = {ins_m1,ins_r1,ins_r2,ins_w1,ins_w2}*/;
-logic[4:0] next_mc,next_mc_atphi1/* = {ins_m1,ins_r1,ins_r2,ins_w1,ins_w2}*/;
+logic[4:0] next_mc/* = {ins_m1,ins_r1,ins_r2,ins_w1,ins_w2}*/;
 
 logic[6:0] current_t/* = {t1,t2,t3,t4,t5,t6,t_reset}*/;
 logic[6:0] next_t/* = {t1,t2,t3,t4,t5,t6,t_reset}*/;
@@ -131,20 +134,17 @@ always@(posedge phi2)begin
 		end
 		endcase
 	end
-	//m1 <= (~hld_cyc&nxt_ins)|(hld_cyc&next_mc_atphi1[4]);
 end
 
 always@(posedge phi1)begin
 	current_t <= next_t;
 	current_mc <= next_mc;
-	next_mc_atphi1 <= next_mc;
 	hld_cyc = (~reset&~m1_end&~(next_t[4]&~next_mc[4]));
 	nxt_ins = (((next_mc[3]&~timing[`ins_e2]&~timing[`ins_e3])|(next_mc[2]&~timing[`ins_e2]&timing[`ins_e3])|(next_mc[1]&timing[`ins_e2]&~timing[`ins_e3]))&next_t[4])|reset|(m1_end&timing[`ins_e1]&timing[`ins_e2]&timing[`ins_e3]);
 end
-//assign nxt_ins = (((next_mc[3]&~timing[`ins_e2]&~timing[`ins_e3])|(next_mc[2]&~timing[`ins_e2]&timing[`ins_e3])|(next_mc[1]&timing[`ins_e2]&~timing[`ins_e3]))&next_t[4])|reset|(m1_end&timing[`ins_e1]&timing[`ins_e2]&timing[`ins_e3]);
 assign m1_end = next_t[1]|(next_t[3]&~timing[`ins_lng]);
 
-always@(posedge phi1,posedge phi2)begin
+always@(posedge phi1)begin
 	if(reset) microcode_pc <= 1'b0;
 	else if(next_t != 7'b0000001) begin
 		if(((!phi1&phi2)||(!phi2&!phi1))&current_t[4]) microcode_pc = 10;
@@ -155,7 +155,16 @@ always@(posedge phi1,posedge phi2)begin
 	endcase
 end
 
-assign dbus_to_instr_reg = control[0];
+assign bc_rw = ((/*reg_op_s*/control[1]&current_mc[4]&current_t[6]&phi2)||(/*reg_op_d*/control[2]&current_mc[4]&current_t[4]&phi2))&((~instruction[2]&~instruction[1]&~instruction[0])|(~instruction[2]&~instruction[1]&instruction[0]));
+assign de_rw = ((/*reg_op_s*/control[1]&current_mc[4]&current_t[6]&phi2)||(/*reg_op_d*/control[2]&current_mc[4]&current_t[4]&phi2))&((~instruction[2]&instruction[1]&~instruction[0])|(~instruction[2]&instruction[1]&instruction[0]));
+assign hl_rw = ((/*reg_op_s*/control[1]&current_mc[4]&current_t[6]&phi2)||(/*reg_op_d*/control[2]&current_mc[4]&current_t[4]&phi2))&((instruction[2]&~instruction[1]&~instruction[0])|(instruction[2]&~instruction[1]&instruction[0]));
+assign pc_rw = control[4]&phi2;
+assign dreg_wr = control[10]&phi2;
+assign dbus_to_instr_reg = control[0]&phi1&next_t[6];
+
+
+assign ALE = control[35]&phi1&next_t[6];
+
 endmodule
 
 module decode
