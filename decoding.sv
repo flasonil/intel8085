@@ -19,6 +19,12 @@
 `define W1	5'b00010
 `define W2	5'b00001
 
+`define reg_b	3'b000
+`define reg_c	3'b001
+`define reg_d	3'b010
+`define reg_e	3'b011
+`define reg_h	3'b100
+`define reg_l	3'b101
 
 module decoding
 (
@@ -34,12 +40,17 @@ module decoding
 	output logic ALE,
 
 	output logic bc_rw,de_rw,hl_rw,pc_rw,
-	output logic dreg_wr,
-	output logic dbus_to_instr_reg
+	output logic dreg_wr,dreg_rd,
+	output logic lreg_rd,rreg_rd,lreg_wr,rreg_wr,
+	output logic dreg_cnt,dreg_inc,
+	output logic dbus_to_instr_reg,
+	output logic write_dbus_to_alu_tmp,sel_alu_a,alu_a_to_dbus,
+	output logic sel_0_fe,select_ncarry_1
 );
 
 logic hld_cyc,nxt_ins,m1_end;
-
+logic bc_s,de_s,hl_s;
+logic bc_d,de_d,hl_d;
 
 logic[4:0] current_mc/* = {ins_m1,ins_r1,ins_r2,ins_w1,ins_w2}*/;
 logic[4:0] next_mc/* = {ins_m1,ins_r1,ins_r2,ins_w1,ins_w2}*/;
@@ -63,6 +74,17 @@ end
 decode decode(.instr(instruction),.gr(group));
 timingrom timingrom(.group(group),.timing(timing));
 
+always@(negedge dbus_to_instr_reg)begin
+
+	bc_s <= (~instruction[2]&~instruction[1]&~instruction[0])|(~instruction[2]&~instruction[1]&instruction[0]);
+	de_s <= (~instruction[2]&instruction[1]&~instruction[0])|(~instruction[2]&instruction[1]&instruction[0]);
+	hl_s <= (instruction[2]&~instruction[1]&~instruction[0])|(instruction[2]&~instruction[1]&instruction[0]);
+	bc_d <= (~instruction[5]&~instruction[4]&~instruction[3])|(~instruction[5]&~instruction[4]&instruction[3]);
+	de_d <= (~instruction[5]&instruction[4]&~instruction[3])|(~instruction[5]&instruction[4]&instruction[3]);
+	hl_d <= (instruction[5]&~instruction[4]&~instruction[3])|(instruction[5]&~instruction[4]&instruction[3]);
+
+end
+
 always@(posedge phi2)begin
 	if(reset)begin
 	next_t <= `Treset;
@@ -75,7 +97,9 @@ always@(posedge phi2)begin
 
 			`T1: next_t <= `T2;
 			`T2: next_t <= `T3;
-			`T3: next_t <= `T4;
+			`T3: begin
+				next_t <= `T4;			
+			end
 			`T4:begin
 				if(timing[`ins_lng])next_t <= `T5;
 				else begin 
@@ -147,7 +171,7 @@ assign m1_end = next_t[1]|(next_t[3]&~timing[`ins_lng]);
 always@(posedge phi1)begin
 	if(reset) microcode_pc <= 1'b0;
 	else if(next_t != 7'b0000001) begin
-		if(((!phi1&phi2)||(!phi2&!phi1))&current_t[4]) microcode_pc = 10;
+		if(current_t[4]) microcode_pc = 10;
 		else microcode_pc++ ;
 	end
 	case(microcode_pc)
@@ -155,13 +179,24 @@ always@(posedge phi1)begin
 	endcase
 end
 
-assign bc_rw = ((/*reg_op_s*/control[1]&current_mc[4]&current_t[6]&phi2)||(/*reg_op_d*/control[2]&current_mc[4]&current_t[4]&phi2))&((~instruction[2]&~instruction[1]&~instruction[0])|(~instruction[2]&~instruction[1]&instruction[0]));
-assign de_rw = ((/*reg_op_s*/control[1]&current_mc[4]&current_t[6]&phi2)||(/*reg_op_d*/control[2]&current_mc[4]&current_t[4]&phi2))&((~instruction[2]&instruction[1]&~instruction[0])|(~instruction[2]&instruction[1]&instruction[0]));
-assign hl_rw = ((/*reg_op_s*/control[1]&current_mc[4]&current_t[6]&phi2)||(/*reg_op_d*/control[2]&current_mc[4]&current_t[4]&phi2))&((instruction[2]&~instruction[1]&~instruction[0])|(instruction[2]&~instruction[1]&instruction[0]));
+assign bc_rw =	((/*reg_op_s*/control[1]&current_mc[4]&(current_t[6]&next_t[5])&bc_s)|(/*reg_op_d*/control[2]&current_mc[4]&(current_t[4]&next_t[3])&bc_d));
+assign de_rw =	((/*reg_op_s*/control[1]&current_mc[4]&(current_t[6]&next_t[5])&de_s)|(/*reg_op_d*/control[2]&current_mc[4]&(current_t[4]&next_t[3])&de_d));
+assign hl_rw =	((/*reg_op_s*/control[1]&current_mc[4]&(current_t[6]&next_t[5])&hl_s)|(/*reg_op_d*/control[2]&current_mc[4]&(current_t[4]&next_t[3])&hl_d));
 assign pc_rw = control[4]&phi2;
 assign dreg_wr = control[10]&phi2;
-assign dbus_to_instr_reg = control[0]&phi1&next_t[6];
-
+assign dreg_rd = control[11]&phi2&current_t[3];
+assign dreg_cnt = control[14]&phi2&current_t[3];
+assign dreg_inc = control[12]&phi2&current_t[3];
+assign lreg_rd = /*reg_op_s*/control[1]&/*high registers cond*/((~instruction[2]&~instruction[1]&~instruction[0])|(~instruction[2]&instruction[1]&~instruction[0])|(instruction[2]&~instruction[1]&~instruction[0]))&/*timing cond*/((current_t[6]&next_t[5])|(current_t[5]&next_t[5]));
+assign rreg_rd = /*reg_op_s*/control[1]&/*low registers cond*/((~instruction[2]&~instruction[1]&instruction[0])|(~instruction[2]&instruction[1]&instruction[0])|(instruction[2]&~instruction[1]&instruction[0]))&/*timing cond*/((current_t[6]&next_t[5])|(current_t[5]&next_t[5]));
+assign lreg_wr = control[9]&current_t[4]&next_t[3];
+assign rreg_wr = control[8]&phi2;
+assign dbus_to_instr_reg = control[0]&phi1&next_t[4];
+assign write_dbus_to_alu_tmp = control[27]&current_t[5]&next_t[5];
+assign sel_0_fe = control[28]&current_t[5]&next_t[5];
+assign select_ncarry_1 = control[19]&current_t[5]&next_t[5];
+assign sel_alu_a = control[25]&current_t[4]&next_t[3];
+assign alu_a_to_dbus = control[26]&current_t[4]&next_t[3];
 
 assign ALE = control[35]&phi1&next_t[6];
 

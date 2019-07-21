@@ -23,7 +23,7 @@ end
 
 always@(negedge phi2)begin
 if(rst)begin
-bc <= 16'h0000;
+bc <= 16'h5738;
 de <= 16'h00AA;
 hl <= 16'h0000;
 wz <= 16'h0000;
@@ -90,11 +90,13 @@ end else if(!dreg_inc&&dreg_dec)begin
 end
 end
 
-always@(/*negedge clk,*/posedge phi1)begin
+always@(outreg,rreg_rd,lreg_rd)begin
 	if(!rreg_rd&&lreg_rd) datao <= outreg[15:8];
 	else if(rreg_rd&&!lreg_rd) datao <= outreg[7:0];
 	else datao <= 8'bzzzzzzzz;
+end
 
+always@(posedge phi1)begin
 	ADDRESS <= address_latch;
 end
 

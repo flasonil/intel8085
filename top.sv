@@ -15,7 +15,8 @@ module top
 	output logic clk_out,reset_out
 );
 //logic S0int,S1int,RDnint,WRnint,ALEint,IOMnint,dbus_to_instr_reg;
-logic dbus_to_instr_reg,dreg_wr,bc_rw,de_rw,hl_rw;
+logic dbus_to_instr_reg,dreg_wr,bc_rw,de_rw,hl_rw,pc_rw,lreg_rd,rreg_rd,lreg_wr,rreg_wr,write_dbus_to_alu_tmp;
+logic sel_0_fe,select_ncarry_1;
 
 logic phi1,phi2,reset;
 logic[35:0] control;
@@ -42,11 +43,24 @@ decoding decoding(
 	.ALE(ALE),
 //	.IOMn(IOMn),
 	.dreg_wr(dreg_wr),
+	.dreg_rd(dreg_rd),
+	.dreg_cnt(dreg_cnt),
+	.dreg_inc(dreg_inc),
+	.lreg_wr(lreg_wr),
+	.rreg_wr(rreg_wr),
+	.lreg_rd(lreg_rd),
+	.rreg_rd(rreg_rd),
 	.bc_rw(bc_rw),
 	.de_rw(de_rw),
 	.hl_rw(hl_rw),
+	.pc_rw(pc_rw),
 	.dbus_to_instr_reg(dbus_to_instr_reg),
-	.instruction(instruction_register)
+	.write_dbus_to_alu_tmp(write_dbus_to_alu_tmp),
+	.instruction(instruction_register),
+	.sel_0_fe(sel_0_fe),
+	.select_ncarry_1(select_ncarry_1),
+	.sel_alu_a(sel_alu_a),
+	.alu_a_to_dbus(alu_a_to_dbus)
 );
 
 registerfile registerfile(
@@ -61,35 +75,35 @@ registerfile registerfile(
 	.wz_rw(/*wz_rw*/control[3]),
 	.pc_rw(pc_rw/*control[4]*/),
 	.sp_rw(/*sp_rw*/control[5]),
-	.rreg_rd(/*rreg_rd*/control[6]),
-	.lreg_rd(/*lreg_rd*/control[7]),
-	.rreg_wr(/*rreg_wr*/control[8]),
-	.lreg_wr(/*lreg_wr*/control[9]),
+	.rreg_rd(rreg_rd/*control[6]*/),
+	.lreg_rd(lreg_rd/*control[7]*/),
+	.rreg_wr(rreg_wr/*control[8]*/),
+	.lreg_wr(lreg_wr/*control[9]*/),
 	.dreg_wr(dreg_wr/*control[10]*/),
-	.dreg_rd(/*dreg_rd*/control[11]),
-	.dreg_inc(/*dreg_inc*/control[12]),
+	.dreg_rd(dreg_rd/*control[11]*/),
+	.dreg_inc(dreg_inc/*control[12]*/),
 	.dreg_dec(/*dreg_dec*/control[13]),
-	.dreg_cnt(/*dreg_cnt*/control[14]),
+	.dreg_cnt(dreg_cnt/*control[14]*/),
 	.dreg_cnt2(/*dreg_cnt2*/control[15])
 );
 
-aluplusreg U2(
+aluplusreg aluplusreg(
 	.phi1(phi1),
 	.phi2(phi2),
 	.rst(reset),
 	.select_op1(/*select_op1*/control[16]),
 	.select_op2(/*select_op2*/control[17]),
 	.select_neg(/*select_neg*/control[18]),
-	.select_ncarry_1(/*select_ncarry_1*/control[19]),
+	.select_ncarry_1(select_ncarry_1/*control[19]*/),
 	.select_shift_right(/*select_shift_right*/control[20]),
 	.shift_right_in(/*shift_right_in*/control[21]),
 	.dbus_to_act(/*dbus_to_act*/control[22]),
 	.a_to_act(/*a_to_act*/control[23]),
 	.alu_to_a(/*alu_to_a*/control[24]),
-	.sel_alu_a(/*sel_alu_a*/control[25]),
-	.alu_a_to_dbus(/*alu_a_to_dbus*/control[26]),
-	.write_dbus_to_alu_tmp(/*write_dbus_to_alu_tmp*/control[27]),
-	.sel_0_fe(/*sel_0_fe*/control[28]),
+	.sel_alu_a(sel_alu_a/*control[25]*/),
+	.alu_a_to_dbus(alu_a_to_dbus/*control[26]*/),
+	.write_dbus_to_alu_tmp(write_dbus_to_alu_tmp/*control[27]*/),
+	.sel_0_fe(sel_0_fe/*control[28]*/),
 	.fe_0_to_act(/*fe_0_to_act*/control[29]),
 
 	.dbus_tmp(dbus),

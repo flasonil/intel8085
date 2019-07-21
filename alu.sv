@@ -72,12 +72,12 @@ alu8bit alu(
 always@(negedge phi2)begin
 if(rst)begin
 accumulator <= 8'h00;
-act <= 8'h00;
+//act <= 8'h00;
 tmp <= 8'h00;
 end
 end
 
-always@(posedge phi1)begin
+always@(sel_0_fe)begin
 if(!sel_0_fe)begin
 	if(dbus_to_act) act <= dbus_act;
 	else if(a_to_act) act <= accumulator;
@@ -89,7 +89,7 @@ end
 always@(posedge phi1)begin
 	if(alu_to_a) accumulator <= alures;
 end
-always@(posedge phi1)begin
+always@(write_dbus_to_alu_tmp)begin
 	if(write_dbus_to_alu_tmp) tmp <= dbus_tmp;
 end
 
