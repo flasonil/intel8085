@@ -25,6 +25,8 @@
 `define reg_e	3'b011
 `define reg_h	3'b100
 `define reg_l	3'b101
+`define reg_m	3'b110
+`define reg_a	3'b111
 
 module decoding
 (
@@ -74,16 +76,6 @@ end
 decode decode(.instr(instruction),.gr(group));
 timingrom timingrom(.group(group),.timing(timing));
 
-always@(posedge phi2)begin
-if(current_t[3])begin
-	bc_s <= (~instruction[2]&~instruction[1]&~instruction[0])|(~instruction[2]&~instruction[1]&instruction[0]);
-	de_s <= (~instruction[2]&instruction[1]&~instruction[0])|(~instruction[2]&instruction[1]&instruction[0]);
-	hl_s <= (instruction[2]&~instruction[1]&~instruction[0])|(instruction[2]&~instruction[1]&instruction[0]);
-	bc_d <= (~instruction[5]&~instruction[4]&~instruction[3])|(~instruction[5]&~instruction[4]&instruction[3]);
-	de_d <= (~instruction[5]&instruction[4]&~instruction[3])|(~instruction[5]&instruction[4]&instruction[3]);
-	hl_d <= (instruction[5]&~instruction[4]&~instruction[3])|(instruction[5]&~instruction[4]&instruction[3]);
-end
-end
 
 always@(posedge phi2)begin
 	if(reset)begin
@@ -180,9 +172,9 @@ always@(posedge phi1)begin
 	endcase
 end
 
-assign bc_rw =	((/*reg_op_s*/control[1]&current_mc[4]&(current_t[6]&next_t[5])&bc_s)|(/*reg_op_d*/control[2]&current_mc[4]&(current_t[4]&next_t[3])&bc_d));
-assign de_rw =	((/*reg_op_s*/control[1]&current_mc[4]&(current_t[6]&next_t[5])&de_s)|(/*reg_op_d*/control[2]&current_mc[4]&(current_t[4]&next_t[3])&de_d));
-assign hl_rw =	((/*reg_op_s*/control[1]&current_mc[4]&(current_t[6]&next_t[5])&hl_s)|(/*reg_op_d*/control[2]&current_mc[4]&(current_t[4]&next_t[3])&hl_d));
+assign bc_rw =	((/*reg_op_s*/control[1]&current_mc[4]&(current_t[6]&next_t[5])&((~instruction[2]&~instruction[1]&~instruction[0])|(~instruction[2]&~instruction[1]&instruction[0])))|(/*reg_op_d*/control[2]&current_mc[4]&(current_t[4]&next_t[3])&((~instruction[5]&~instruction[4]&~instruction[3])|(~instruction[5]&~instruction[4]&instruction[3]))));
+assign de_rw =	((/*reg_op_s*/control[1]&current_mc[4]&(current_t[6]&next_t[5])&((~instruction[2]&instruction[1]&~instruction[0])|(~instruction[2]&instruction[1]&instruction[0])))|(/*reg_op_d*/control[2]&current_mc[4]&(current_t[4]&next_t[3])&((~instruction[5]&instruction[4]&~instruction[3])|(~instruction[5]&instruction[4]&instruction[3]))));
+assign hl_rw =	((/*reg_op_s*/control[1]&current_mc[4]&(current_t[6]&next_t[5])&((instruction[2]&~instruction[1]&~instruction[0])|(instruction[2]&~instruction[1]&instruction[0])))|(/*reg_op_d*/control[2]&current_mc[4]&(current_t[4]&next_t[3])&((instruction[5]&~instruction[4]&~instruction[3])|(instruction[5]&~instruction[4]&instruction[3]))));
 assign pc_rw = control[4]&phi2;
 assign dreg_wr = control[10]&phi2;
 assign dreg_rd = control[11]&phi2&current_t[3];
