@@ -29,7 +29,7 @@
 module decoding
 (
 	input logic phi1,phi2,reset,
-	input logic [7:0] instruction,
+	input logic [7:0] next_instruction,
 	output logic[35:0] control,
 
 //	output logic S0,
@@ -58,7 +58,7 @@ logic[4:0] next_mc/* = {ins_m1,ins_r1,ins_r2,ins_w1,ins_w2}*/;
 logic[6:0] current_t/* = {t1,t2,t3,t4,t5,t6,t_reset}*/;
 logic[6:0] next_t/* = {t1,t2,t3,t4,t5,t6,t_reset}*/;
 
-logic[7:0] microcode_pc;
+logic[7:0] microcode_pc,instruction;
 
 logic[47:0] group;
 logic[5:0] timing;
@@ -74,15 +74,15 @@ end
 decode decode(.instr(instruction),.gr(group));
 timingrom timingrom(.group(group),.timing(timing));
 
-always@(negedge dbus_to_instr_reg)begin
-
+always@(posedge phi2)begin
+if(current_t[3])begin
 	bc_s <= (~instruction[2]&~instruction[1]&~instruction[0])|(~instruction[2]&~instruction[1]&instruction[0]);
 	de_s <= (~instruction[2]&instruction[1]&~instruction[0])|(~instruction[2]&instruction[1]&instruction[0]);
 	hl_s <= (instruction[2]&~instruction[1]&~instruction[0])|(instruction[2]&~instruction[1]&instruction[0]);
 	bc_d <= (~instruction[5]&~instruction[4]&~instruction[3])|(~instruction[5]&~instruction[4]&instruction[3]);
 	de_d <= (~instruction[5]&instruction[4]&~instruction[3])|(~instruction[5]&instruction[4]&instruction[3]);
 	hl_d <= (instruction[5]&~instruction[4]&~instruction[3])|(instruction[5]&~instruction[4]&instruction[3]);
-
+end
 end
 
 always@(posedge phi2)begin
@@ -161,6 +161,7 @@ always@(posedge phi2)begin
 end
 
 always@(posedge phi1)begin
+	if(next_t[3]) instruction <= next_instruction;
 	current_t <= next_t;
 	current_mc <= next_mc;
 	hld_cyc = (~reset&~m1_end&~(next_t[4]&~next_mc[4]));

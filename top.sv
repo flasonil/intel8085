@@ -56,7 +56,7 @@ decoding decoding(
 	.pc_rw(pc_rw),
 	.dbus_to_instr_reg(dbus_to_instr_reg),
 	.write_dbus_to_alu_tmp(write_dbus_to_alu_tmp),
-	.instruction(instruction_register),
+	.next_instruction(instruction_register),
 	.sel_0_fe(sel_0_fe),
 	.select_ncarry_1(select_ncarry_1),
 	.sel_alu_a(sel_alu_a),
