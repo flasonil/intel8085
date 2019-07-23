@@ -3,8 +3,8 @@
            2: datao = 8'h55;
            3: datao = 8'h5d;
            4: datao = 8'h65;
-           5: datao = 8'h66;
-           6: datao = 8'h5C;
+           5: datao = 8'h78;
+           6: datao = 8'h4f;
            7: datao = 8'h53;
            8: datao = 8'h4A;
            9: datao = 8'h41;

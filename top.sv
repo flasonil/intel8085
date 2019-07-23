@@ -15,7 +15,10 @@ module top
 	output logic clk_out,reset_out
 );
 //logic S0int,S1int,RDnint,WRnint,ALEint,IOMnint,dbus_to_instr_reg;
-logic dbus_to_instr_reg,dreg_wr,bc_rw,de_rw,hl_rw,pc_rw,lreg_rd,rreg_rd,lreg_wr,rreg_wr,write_dbus_to_alu_tmp;
+logic dbus_to_instr_reg;
+logic dreg_wr,bc_rw,de_rw,hl_rw,pc_rw;
+logic lreg_rd,rreg_rd,lreg_wr,rreg_wr;
+logic write_dbus_to_alu_tmp,sel_alu_a,alu_a_to_dbus,alu_to_a;
 logic sel_0_fe,select_ncarry_1;
 
 logic phi1,phi2,reset;
@@ -60,7 +63,8 @@ decoding decoding(
 	.sel_0_fe(sel_0_fe),
 	.select_ncarry_1(select_ncarry_1),
 	.sel_alu_a(sel_alu_a),
-	.alu_a_to_dbus(alu_a_to_dbus)
+	.alu_a_to_dbus(alu_a_to_dbus),
+	.alu_to_a(alu_to_a)
 );
 
 registerfile registerfile(
@@ -99,7 +103,7 @@ aluplusreg aluplusreg(
 	.shift_right_in(/*shift_right_in*/control[21]),
 	.dbus_to_act(/*dbus_to_act*/control[22]),
 	.a_to_act(/*a_to_act*/control[23]),
-	.alu_to_a(/*alu_to_a*/control[24]),
+	.alu_to_a(alu_to_a/*control[24]*/),
 	.sel_alu_a(sel_alu_a/*control[25]*/),
 	.alu_a_to_dbus(alu_a_to_dbus/*control[26]*/),
 	.write_dbus_to_alu_tmp(write_dbus_to_alu_tmp/*control[27]*/),

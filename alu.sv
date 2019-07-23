@@ -86,7 +86,7 @@ end else if(sel_0_fe)begin
 		else if(!fe_0_to_act) act <= 8'h00;
 	end
 end
-always@(posedge phi1)begin
+always@(alures or alu_to_a)begin
 	if(alu_to_a) accumulator <= alures;
 end
 always@(write_dbus_to_alu_tmp)begin

@@ -46,13 +46,11 @@ module decoding
 	output logic lreg_rd,rreg_rd,lreg_wr,rreg_wr,
 	output logic dreg_cnt,dreg_inc,
 	output logic dbus_to_instr_reg,
-	output logic write_dbus_to_alu_tmp,sel_alu_a,alu_a_to_dbus,
+	output logic write_dbus_to_alu_tmp,sel_alu_a,alu_a_to_dbus,alu_to_a,
 	output logic sel_0_fe,select_ncarry_1
 );
 
 logic hld_cyc,nxt_ins,m1_end;
-logic bc_s,de_s,hl_s;
-logic bc_d,de_d,hl_d;
 
 logic[4:0] current_mc/* = {ins_m1,ins_r1,ins_r2,ins_w1,ins_w2}*/;
 logic[4:0] next_mc/* = {ins_m1,ins_r1,ins_r2,ins_w1,ins_w2}*/;
@@ -175,21 +173,22 @@ end
 assign bc_rw =	((/*reg_op_s*/control[1]&current_mc[4]&(current_t[6]&next_t[5])&((~instruction[2]&~instruction[1]&~instruction[0])|(~instruction[2]&~instruction[1]&instruction[0])))|(/*reg_op_d*/control[2]&current_mc[4]&(current_t[4]&next_t[3])&((~instruction[5]&~instruction[4]&~instruction[3])|(~instruction[5]&~instruction[4]&instruction[3]))));
 assign de_rw =	((/*reg_op_s*/control[1]&current_mc[4]&(current_t[6]&next_t[5])&((~instruction[2]&instruction[1]&~instruction[0])|(~instruction[2]&instruction[1]&instruction[0])))|(/*reg_op_d*/control[2]&current_mc[4]&(current_t[4]&next_t[3])&((~instruction[5]&instruction[4]&~instruction[3])|(~instruction[5]&instruction[4]&instruction[3]))));
 assign hl_rw =	((/*reg_op_s*/control[1]&current_mc[4]&(current_t[6]&next_t[5])&((instruction[2]&~instruction[1]&~instruction[0])|(instruction[2]&~instruction[1]&instruction[0])))|(/*reg_op_d*/control[2]&current_mc[4]&(current_t[4]&next_t[3])&((instruction[5]&~instruction[4]&~instruction[3])|(instruction[5]&~instruction[4]&instruction[3]))));
-assign pc_rw = control[4]&phi2;
-assign dreg_wr = control[10]&phi2;
-assign dreg_rd = control[11]&phi2&current_t[3];
-assign dreg_cnt = control[14]&phi2&current_t[3];
-assign dreg_inc = control[12]&phi2&current_t[3];
+assign pc_rw = control[4]&((current_t[3]&next_t[6])|(current_t[5]&next_t[4]));
+assign dreg_wr = control[10]&next_t[4]&current_t[5];
+assign dreg_rd = control[11]&next_t[6]&current_t[3];
+assign dreg_cnt = control[14]&next_t[6]&current_t[3];
+assign dreg_inc = control[12]&next_t[6]&current_t[3];
 assign lreg_rd = /*reg_op_s*/control[1]&/*high registers cond*/((~instruction[2]&~instruction[1]&~instruction[0])|(~instruction[2]&instruction[1]&~instruction[0])|(instruction[2]&~instruction[1]&~instruction[0]))&/*timing cond*/((current_t[6]&next_t[5])|(current_t[5]&next_t[5]));
 assign rreg_rd = /*reg_op_s*/control[1]&/*low registers cond*/((~instruction[2]&~instruction[1]&instruction[0])|(~instruction[2]&instruction[1]&instruction[0])|(instruction[2]&~instruction[1]&instruction[0]))&/*timing cond*/((current_t[6]&next_t[5])|(current_t[5]&next_t[5]));
 assign lreg_wr = /*reg_op_d*/control[2]&/*high registers cond*/((~instruction[5]&~instruction[4]&~instruction[3])|(~instruction[5]&instruction[4]&~instruction[3])|(instruction[5]&~instruction[4]&~instruction[3]))&/*timing cond*/(current_t[4]&next_t[3]);
-assign rreg_wr = /*reg_op_s*/control[2]&/*low registers cond*/((~instruction[5]&~instruction[4]&instruction[3])|(~instruction[5]&instruction[4]&instruction[3])|(instruction[5]&~instruction[4]&instruction[3]))&/*timing cond*/(current_t[4]&next_t[3]);
-assign dbus_to_instr_reg = control[0]&phi1&next_t[4];
-assign write_dbus_to_alu_tmp = control[27]&current_t[5]&next_t[5];
+assign rreg_wr = /*reg_op_d*/control[2]&/*low registers cond*/((~instruction[5]&~instruction[4]&instruction[3])|(~instruction[5]&instruction[4]&instruction[3])|(instruction[5]&~instruction[4]&instruction[3]))&/*timing cond*/(current_t[4]&next_t[3]);
+assign dbus_to_instr_reg = control[0]&current_t[4]&next_t[4];
+assign write_dbus_to_alu_tmp = control[1]&(~((instruction[2]&instruction[1]&instruction[0])|(instruction[2]&instruction[1]&~instruction[0])))&(current_t[5]&next_t[5]);
 assign sel_0_fe = control[28]&current_t[5]&next_t[5];
 assign select_ncarry_1 = control[19]&current_t[5]&next_t[5];
-assign sel_alu_a = control[25]&current_t[4]&next_t[3];
-assign alu_a_to_dbus = control[26]&current_t[4]&next_t[3];
+assign sel_alu_a = (~((instruction[2]&instruction[1]&instruction[0])&(~((instruction[5]&instruction[4]&instruction[3])|(instruction[5]&instruction[4]&~instruction[3])))))&(current_t[4]&next_t[3]);//0 se la sorgente è accumulatore e destinazione uno dei registri
+assign alu_a_to_dbus = (bc_rw|de_rw|hl_rw)&(current_t[4]&next_t[3]);
+assign alu_to_a = (instruction[5]&instruction[4]&instruction[3])&(current_t[4]&next_t[3]);
 
 assign ALE = control[35]&phi1&next_t[6];
 
