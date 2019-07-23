@@ -24,8 +24,8 @@ end
 always@(negedge phi2)begin
 if(rst)begin
 bc <= 16'h5738;
-de <= 16'h00AA;
-hl <= 16'h0000;
+de <= 16'hFFAA;
+hl <= 16'h5CAE;
 wz <= 16'h0000;
 pc <= 16'h0100;
 sp <= 16'h0000;
