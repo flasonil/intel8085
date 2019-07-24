@@ -97,6 +97,7 @@ always@(posedge phi2)begin
 					if(timing[`ins_skp_rx]) next_mc <= `W1;
 					else if(timing[`ins_skp_r1]) next_mc <= `R2;
 					else if(timing[`ins_e1]&timing[`ins_e2]&timing[`ins_e3]) next_mc <= `M1;
+					else next_mc <= `R1;
 				end
 			end
 			`T5: next_t <= `T6;
@@ -162,8 +163,10 @@ assign m1_end = next_t[1]|(next_t[3]&~timing[`ins_lng]);
 always@(posedge phi1)begin
 	if(reset) microcode_pc <= 1'b0;
 	else if(next_t != 7'b0000001) begin
-		if(current_t[4]) microcode_pc = 10;
-		else microcode_pc++ ;
+		if(current_t[4])begin
+			if(group[45])microcode_pc = 10;
+			else if(group[14])microcode_pc = 15;
+		end else microcode_pc++ ;
 	end
 	case(microcode_pc)
 	`include "rommicrocode.rom"
@@ -268,6 +271,7 @@ module timingrom
 always_comb begin
 case(group)
 	48'b001000000000000000000000000000000000000000000000: timing = 6'b000111;
+	48'b000000000000000000000000000000000100000000000000: timing = 6'b000100;
 endcase
 end
 

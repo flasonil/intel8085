@@ -1,10 +1,10 @@
-           0: datao = 8'h45;
-           1: datao = 8'h4d;
-           2: datao = 8'h55;
-           3: datao = 8'h5d;
-           4: datao = 8'h65;
-           5: datao = 8'h78;
-           6: datao = 8'h4f;
+           0: datao = 8'h47;
+           1: datao = 8'h4f;
+           2: datao = 8'h57;
+           3: datao = 8'h5f;
+           4: datao = 8'h67;
+           5: datao = 8'h6f;
+           6: datao = 8'h16;
            7: datao = 8'h53;
            8: datao = 8'h4A;
            9: datao = 8'h41;
