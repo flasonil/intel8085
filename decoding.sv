@@ -71,7 +71,7 @@ next_t = 7'b1000000;
 microcode_pc = 8'b00000000;
 end
 
-decode decode(.instr(instruction),.gr(group));
+decode decode(.instr(next_instruction),.gr(group));
 timingrom timingrom(.group(group),.timing(timing));
 
 
@@ -163,10 +163,11 @@ assign m1_end = next_t[1]|(next_t[3]&~timing[`ins_lng]);
 always@(posedge phi1)begin
 	if(reset) microcode_pc <= 1'b0;
 	else if(next_t != 7'b0000001) begin
-		if(current_t[4])begin
+		if(current_t[4]) begin
 			if(group[45])microcode_pc = 10;
-			else if(group[14])microcode_pc = 15;
-		end else microcode_pc++ ;
+			else if(group[42]) microcode_pc = 4;
+		end
+		else microcode_pc++ ;
 	end
 	case(microcode_pc)
 	`include "rommicrocode.rom"
@@ -176,11 +177,11 @@ end
 assign bc_rw =	((/*reg_op_s*/control[1]&current_mc[4]&(current_t[6]&next_t[5])&((~instruction[2]&~instruction[1]&~instruction[0])|(~instruction[2]&~instruction[1]&instruction[0])))|(/*reg_op_d*/control[2]&current_mc[4]&(current_t[4]&next_t[3])&((~instruction[5]&~instruction[4]&~instruction[3])|(~instruction[5]&~instruction[4]&instruction[3]))));
 assign de_rw =	((/*reg_op_s*/control[1]&current_mc[4]&(current_t[6]&next_t[5])&((~instruction[2]&instruction[1]&~instruction[0])|(~instruction[2]&instruction[1]&instruction[0])))|(/*reg_op_d*/control[2]&current_mc[4]&(current_t[4]&next_t[3])&((~instruction[5]&instruction[4]&~instruction[3])|(~instruction[5]&instruction[4]&instruction[3]))));
 assign hl_rw =	((/*reg_op_s*/control[1]&current_mc[4]&(current_t[6]&next_t[5])&((instruction[2]&~instruction[1]&~instruction[0])|(instruction[2]&~instruction[1]&instruction[0])))|(/*reg_op_d*/control[2]&current_mc[4]&(current_t[4]&next_t[3])&((instruction[5]&~instruction[4]&~instruction[3])|(instruction[5]&~instruction[4]&instruction[3]))));
-assign pc_rw = control[4]&((current_t[3]&next_t[6])|(current_t[5]&next_t[4]));
-assign dreg_wr = control[10]&next_t[4]&current_t[5];
-assign dreg_rd = control[11]&next_t[6]&current_t[3];
-assign dreg_cnt = control[14]&next_t[6]&current_t[3];
-assign dreg_inc = control[12]&next_t[6]&current_t[3];
+assign pc_rw = control[4]&((current_t[3]&next_t[6])|(current_t[5]&next_t[4]));//pc_to_inc,inc_to_pc
+assign dreg_wr = control[10]&next_t[4]&current_t[5];//inc_to_pc
+assign dreg_rd = control[11]&next_t[6]&current_t[3];//pc_to_inc(and pc out)
+assign dreg_cnt = control[14]&next_t[6]&current_t[3];//pc_to_inc
+assign dreg_inc = control[12]&next_t[6]&current_t[3];//pc_to_inc
 assign lreg_rd = /*reg_op_s*/control[1]&/*high registers cond*/((~instruction[2]&~instruction[1]&~instruction[0])|(~instruction[2]&instruction[1]&~instruction[0])|(instruction[2]&~instruction[1]&~instruction[0]))&/*timing cond*/((current_t[6]&next_t[5])|(current_t[5]&next_t[5]));
 assign rreg_rd = /*reg_op_s*/control[1]&/*low registers cond*/((~instruction[2]&~instruction[1]&instruction[0])|(~instruction[2]&instruction[1]&instruction[0])|(instruction[2]&~instruction[1]&instruction[0]))&/*timing cond*/((current_t[6]&next_t[5])|(current_t[5]&next_t[5]));
 assign lreg_wr = /*reg_op_d*/control[2]&/*high registers cond*/((~instruction[5]&~instruction[4]&~instruction[3])|(~instruction[5]&instruction[4]&~instruction[3])|(instruction[5]&~instruction[4]&~instruction[3]))&/*timing cond*/(current_t[4]&next_t[3]);
@@ -270,8 +271,9 @@ module timingrom
 
 always_comb begin
 case(group)
-	48'b001000000000000000000000000000000000000000000000: timing = 6'b000111;
-	48'b000000000000000000000000000000000100000000000000: timing = 6'b000100;
+	48'b001000000000000000000000000000000000000000000000: timing = 6'b000111; //MOV RD RS
+	48'b000001000000000000000000000000000000000000000000: timing = 6'b000101; //LXI TO BE FIXED
+	48'b000000000000000000000000000000000100000000000000: timing = 6'b000100; //MVI RS TO BE FIXED
 endcase
 end
 

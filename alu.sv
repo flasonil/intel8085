@@ -71,7 +71,7 @@ alu8bit alu(
 
 always@(negedge phi2)begin
 if(rst)begin
-accumulator <= 8'hcc;
+accumulator <= 8'h00;
 //act <= 8'h00;
 tmp <= 8'h00;
 end
