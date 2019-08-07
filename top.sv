@@ -42,8 +42,8 @@ decoding decoding(
 	.control(control),
 //	.S1(S1),
 //	.S0(S0),
-//	.WRn(WRn),
-//	.RDn(RDn),
+	.WRn(WRn),
+	.RDn(RDn),
 	.ALE(ALE),
 //	.IOMn(IOMn),
 	.dreg_wr(dreg_wr),
@@ -120,17 +120,17 @@ aluplusreg aluplusreg(
 
 );
 
-always@(ALE or address[7:0])begin
+always_comb begin
  if(ALE) data_out <= address[7:0];
+ else if(!WRn) data_out <= dbus;
 end
 
 assign dbus = (dbus_to_instr_reg|datapin_dbus_tmp) ? laddress_data : 8'bzzzzzzzz;
-assign laddress_data = (/*(!RDn&!IOMn&WRn)|*/ALE) ? data_out : 8'bzzzzzzzz;
+assign laddress_data = ((RDn&!IOMn&!WRn)|ALE) ? data_out : 8'bzzzzzzzz;
 assign haddress = address[15:8];
 
 assign S0 = control[9];
 assign S1 = control[10];
 assign IOMn = control[11];
-assign RDn = control[12];
-assign WRn = control[13];
+
 endmodule

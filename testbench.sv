@@ -19,7 +19,7 @@ initial begin
 resetn_in = 0;
 //#380 resetn_in = 0;
 #560 resetn_in = 1;
-#10000 $stop;
+#6000 $stop;
 end
 
 assign x2 = ~x1;

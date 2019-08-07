@@ -1,10 +1,16 @@
 //	TO DO: reg_op_s/d e control[0] potrebbero essere inutili, migliorare leggibilità codice
+//	Caricare in uscita dalla CPU il byte da scrivere in memoria
 `define ins_skp_rx 5
 `define ins_skp_r1 4
 `define ins_lng 3
 `define ins_e1 2
 `define ins_e2 1
 `define ins_e3 0
+
+`define t1 	6
+`define t2 	5
+`define t3 	4
+`define t4 	3
 
 `define T1 	7'b1000000
 `define T2 	7'b0100000
@@ -20,14 +26,13 @@
 `define W1	5'b00010
 `define W2	5'b00001
 
+`define HLT		47
+`define XCHG		46
 `define MOV_RD_RS	45
+`define MOV_RD_M	44
+`define MOV_M_RS	43
 `define LXI_RD		42
 `define MVI_RD		14
-`define reg_e	3'b011
-`define reg_h	3'b100
-`define reg_l	3'b101
-`define reg_m	3'b110
-`define reg_a	3'b111
 
 module decoding
 (
@@ -38,8 +43,8 @@ module decoding
 //	output logic S0,
 //	output logic S1,
 //	output logic IOMn,
-//	output logic RDn,
-//	output logic WRn,
+	output logic RDn,
+	output logic WRn,
 	output logic ALE,
 
 	output logic bc_rw,de_rw,hl_rw,pc_rw,
@@ -71,6 +76,8 @@ next_mc = `M1;
 current_t = 7'b0000001;
 next_t = 7'b1000000;
 microcode_pc = 8'b00000000;
+group = 47'b00000000000000000000000000000000000000000000000;
+next_group = 47'b00000000000000000000000000000000000000000000000;
 end
 
 decode decode(.instr(next_instruction),.gr(next_group));
@@ -154,9 +161,6 @@ always@(posedge phi2)begin
 	end
 	if(nxt_ins) load_ins <= nxt_ins;
 end
-//always@(posedge nxt_ins)begin
-//	load_ins <= nxt_ins;
-//end
 
 always@(posedge phi1)begin
 	if(next_t[3])begin
@@ -187,36 +191,43 @@ always_comb begin
 	endcase
 end
 
-assign bc_s = ((~instruction[2]&~instruction[1]&~instruction[0])|(~instruction[2]&~instruction[1]&instruction[0]))&group[`MOV_RD_RS];
-assign bc_d = ((~instruction[5]&~instruction[4]&~instruction[3])|(~instruction[5]&~instruction[4]&instruction[3]))&(group[`MOV_RD_RS]|group[`LXI_RD]|group[`MVI_RD]);
-assign de_s = ((~instruction[2]&instruction[1]&~instruction[0])|(~instruction[2]&instruction[1]&instruction[0]))&group[`MOV_RD_RS];
-assign de_d = ((~instruction[5]&instruction[4]&~instruction[3])|(~instruction[5]&instruction[4]&instruction[3]))&(group[`MOV_RD_RS]|group[`LXI_RD]|group[`MVI_RD]);
-assign hl_s = ((instruction[2]&~instruction[1]&~instruction[0])|(instruction[2]&~instruction[1]&instruction[0]))&group[`MOV_RD_RS];
-assign hl_d = ((instruction[5]&~instruction[4]&~instruction[3])|(instruction[5]&~instruction[4]&instruction[3]))&(group[`MOV_RD_RS]|group[`LXI_RD]|group[`MVI_RD]);
+assign bc_s = ((~instruction[2]&~instruction[1]&~instruction[0])|(~instruction[2]&~instruction[1]&instruction[0]))&(group[`MOV_RD_RS]|group[`MOV_M_RS]);
+assign bc_d = ((~instruction[5]&~instruction[4]&~instruction[3])|(~instruction[5]&~instruction[4]&instruction[3]))&(group[`MOV_RD_RS]|group[`LXI_RD]|group[`MVI_RD]|group[`MOV_RD_M]);
+assign de_s = ((~instruction[2]&instruction[1]&~instruction[0])|(~instruction[2]&instruction[1]&instruction[0]))&(group[`MOV_RD_RS]|group[`MOV_M_RS]);
+assign de_d = ((~instruction[5]&instruction[4]&~instruction[3])|(~instruction[5]&instruction[4]&instruction[3]))&(group[`MOV_RD_RS]|group[`LXI_RD]|group[`MVI_RD]|group[`MOV_RD_M]);
+assign hl_s = ((instruction[2]&~instruction[1]&~instruction[0])|(instruction[2]&~instruction[1]&instruction[0]))&(group[`MOV_RD_RS]|group[`MOV_M_RS]);
+assign hl_d = ((instruction[5]&~instruction[4]&~instruction[3])|(instruction[5]&~instruction[4]&instruction[3]))&(group[`MOV_RD_RS]|group[`LXI_RD]|group[`MVI_RD]|group[`MOV_RD_M]);
 
-assign bc_rw =	((/*reg_op_s*/control[1]&current_mc[4]&(current_t[6]&next_t[5])&(bc_s))|(/*reg_op_d*/control[2]&((current_mc[4]&current_t[4]&next_t[3]/*MOV RD RS*/)|(current_mc[2]&current_t[6]&next_t[5]/*LXI*/))&(bc_d)));
-assign de_rw =	((/*reg_op_s*/control[1]&current_mc[4]&(current_t[6]&next_t[5])&(de_s))|(/*reg_op_d*/control[2]&((current_mc[4]&current_t[4]&next_t[3]/*MOV RD RS*/)|(current_mc[2]&current_t[6]&next_t[5]/*LXI*/))&(de_d)));
-assign hl_rw =	((/*reg_op_s*/control[1]&current_mc[4]&(current_t[6]&next_t[5])&(hl_s))|(/*reg_op_d*/control[2]&((current_mc[4]&current_t[4]&next_t[3]/*MOV RD RS*/)|(current_mc[2]&current_t[6]&next_t[5]/*LXI*/))&(hl_d)));
-assign pc_rw = (control[4]|control[3])&((((current_t[3]&next_t[6])|(current_t[5]&next_t[4]))/*&current_mc[4]*/)|((current_mc[3]|current_mc[2])&current_t[4]&next_t[6]));//pc_to_inc,inc_to_pc
-assign dreg_wr = control[4]&next_t[4]&current_t[5];//inc_to_pc
-assign dreg_rd = control[3]&((next_t[6]&current_t[3]&current_mc[4])|(current_t[4]&next_t[6]&(current_mc[3]|current_mc[2])));//pc_to_inc(and pc out)
-assign dreg_cnt = control[3]&((next_t[6]&current_t[3]&current_mc[4])|(current_t[4]&next_t[6]&(current_mc[3]|current_mc[2])));//pc_to_inc
-assign dreg_inc = control[3]&((next_t[6]&current_t[3]&current_mc[4])|(current_t[4]&next_t[6]&(current_mc[3]|current_mc[2])));//pc_to_inc
-assign lreg_rd = /*reg_op_s*/(control[/*1*/6]|control[5])&/*high registers cond*/((~instruction[2]&~instruction[1]&~instruction[0])|(~instruction[2]&instruction[1]&~instruction[0])|(instruction[2]&~instruction[1]&~instruction[0]))&/*timing cond*/((current_t[6]&next_t[5])|(current_t[5]&next_t[5]));
-assign rreg_rd = /*reg_op_s*/(control[/*1*/6]|control[5])&/*low registers cond*/((~instruction[2]&~instruction[1]&instruction[0])|(~instruction[2]&instruction[1]&instruction[0])|(instruction[2]&~instruction[1]&instruction[0]))&/*timing cond*/((current_t[6]&next_t[5])|(current_t[5]&next_t[5]));
-assign lreg_wr = (/*reg_op_d*/control[2]&/*high registers cond*/((~instruction[5]&~instruction[4]&~instruction[3])|(~instruction[5]&instruction[4]&~instruction[3])|(instruction[5]&~instruction[4]&~instruction[3]))&/*timing cond*/(current_mc[4]&current_t[4]&next_t[3]/*MOV RD RS*/))|(control[2]&group[42]&current_mc[4]&current_t[4]&next_t[3]);
-assign rreg_wr = (/*reg_op_d*/control[2]&/*low registers cond*/((~instruction[5]&~instruction[4]&instruction[3])|(~instruction[5]&instruction[4]&instruction[3])|(instruction[5]&~instruction[4]&instruction[3]))&/*timing cond*/(current_mc[4]&current_t[4]&next_t[3]/*MOV RD RS*/))|(control[2]&group[42]&current_mc[2]&current_t[6]&next_t[5]);
-assign dbus_to_instr_reg = /*control[0]*/load_ins&current_t[4]&next_t[4];
-assign datapin_dbus_tmp = current_t[4]&next_t[4]&control[7];
-assign write_dbus_to_alu_tmp = (control[5]&(~((instruction[2]&instruction[1]&instruction[0])|(instruction[2]&instruction[1]&~instruction[0])))&(current_t[5]&next_t[5]))|(control[7]&current_t[4]&next_t[4]&current_mc[3])|(control[7]&current_t[4]&next_t[4]&current_mc[2]);
-assign sel_0_fe = control[/*28*/8]&((current_t[5]&next_t[5]&current_mc[4])|(current_t[4]&next_t[4]&current_mc[3])|(control[7]&current_t[4]&next_t[4]&current_mc[2]));
-assign fe_0_to_act = /*~control[8]&current_t[5]&next_t[5]*/1'b0;
-assign select_ncarry_1 = control[/*19*/8]&((current_t[5]&next_t[5]&current_mc[4])|(current_t[4]&next_t[4]&current_mc[3]));
-assign sel_alu_a = (~((instruction[2]&instruction[1]&instruction[0])&(~((instruction[5]&instruction[4]&instruction[3])|(instruction[5]&instruction[4]&~instruction[3])))))&((current_t[4]&next_t[3]&current_mc[4])|(current_t[6]&next_t[5]&current_mc[2]));//0 se la sorgente è accumulatore e destinazione uno dei registri
-assign alu_a_to_dbus = (bc_rw|de_rw|hl_rw)&((current_t[4]&next_t[3]&current_mc[4])|(current_t[6]&next_t[5]&current_mc[2]));
-assign alu_to_a = (instruction[5]&instruction[4]&instruction[3])&(current_t[4]&next_t[3]);
+assign bc_rw =	(((current_mc[4]&current_t[`t1]&next_t[`t2]/*MOV RD RS*/)|(current_mc[1]&current_t[`t1]&next_t[`t2]/*MOV M RS*/))&(bc_s))|(((current_mc[4]&current_t[`t3]&next_t[`t4]/*MOV RD RS*/) | (current_mc[2]&current_t[`t1]&next_t[`t2]/*LXI*/))&(bc_d));
+assign de_rw =	(((current_mc[4]&current_t[`t1]&next_t[`t2]/*MOV RD RS*/)|(current_mc[1]&current_t[`t1]&next_t[`t2]/*MOV M RS*/))&(de_s))|(((current_mc[4]&current_t[`t3]&next_t[`t4]/*MOV RD RS*/) | (current_mc[2]&current_t[`t1]&next_t[`t2]/*LXI*/))&(de_d));
+assign hl_rw =	((((current_mc[4]&current_t[`t1]&next_t[`t2]/*MOV RD RS*/)|(current_mc[1]&current_t[`t1]&next_t[`t2]/*MOV M RS*/))&(hl_s))|(((current_mc[4]&current_t[`t3]&next_t[`t4]/*MOV RD RS*/) | (current_mc[2]&current_t[`t1]&next_t[`t2]/*LXI*/))&(hl_d)))|(/* HL to ADDRESS_LATCH */(group[`MOV_RD_M]|group[`MOV_M_RS])&current_mc[4]&current_t[`t4]&next_t[`t1]);
+assign pc_rw = ((group[`MOV_RD_RS]|group[`LXI_RD]|group[`MVI_RD])&current_t[`t4]&next_t[`t1]) | ((group[`LXI_RD]|group[`MOV_RD_M])&(current_mc[3]|current_mc[2])&current_t[`t3]&next_t[`t1]) | (group[`MOV_M_RS]&current_mc[1]&current_t[`t3]&next_t[`t1]) | (current_mc[4]&current_t[`t2]&next_t[`t3])/* INC to PC sempre in M1T21 */ | (~group[`MOV_RD_M]&~group[`MOV_M_RS]&~current_mc[4]&current_t[`t2]&next_t[`t3]);
 
-assign ALE = control[/*35*/14]&phi1&next_t[6];
+assign dreg_wr = /*(group[`MOV_RD_RS]|group[`LXI_RD]|group[`MVI_RD]|group[`MOV_RD_M])&*/next_t[`t3]&current_t[`t2];//inc_to_pc
+assign dreg_rd =  (group[`MOV_RD_RS]|group[`LXI_RD]|group[`MVI_RD]|group[`MOV_RD_M]|group[`MOV_M_RS]|group[`MOV_M_RS])&((next_t[`t1]&current_t[`t4]&current_mc[4])|(current_t[`t3]&next_t[`t1]&(current_mc[3]|current_mc[2]|current_mc[1])));//LEGGO PC O HL IN M1T41 O LEGGO PC IN R1T31 O R2T31 O W1T31
+
+assign dreg_cnt = ((group[`MOV_RD_RS]|group[`LXI_RD])&next_t[`t1]&current_t[`t4]&current_mc[4]) | ((group[`LXI_RD]|group[`MOV_RD_M])&current_t[`t3]&next_t[`t1]&(current_mc[3]|current_mc[2])) | (group[`MOV_M_RS]&current_mc[1]&current_t[`t3]&next_t[`t1]);//pc_to_inc
+assign dreg_inc = ((group[`MOV_RD_RS]|group[`LXI_RD])&next_t[`t1]&current_t[`t4]&current_mc[4]) | ((group[`LXI_RD]|group[`MOV_RD_M])&current_t[`t3]&next_t[`t1]&(current_mc[3]|current_mc[2])) | (group[`MOV_M_RS]&current_mc[1]&current_t[`t3]&next_t[`t1]);//pc_to_inc
+
+assign lreg_rd = (group[`MOV_RD_RS]|group[`MOV_M_RS])&/*high registers cond*/(~instruction[0])&/*timing cond*/((current_t[`t1]&next_t[`t2])|(current_t[`t2]&next_t[`t2]));
+assign rreg_rd = (group[`MOV_RD_RS]|group[`MOV_M_RS])&/*low registers cond*/  (instruction[0])&/*timing cond*/((current_t[`t1]&next_t[`t2])|(current_t[`t2]&next_t[`t2]));
+
+assign lreg_wr = ((group[`MOV_RD_RS]|group[`LXI_RD]|group[`MOV_RD_M])&/*high registers cond*/(~instruction[3])&/*timing cond*/(current_mc[4]&current_t[`t3]&next_t[`t4]/*MOV RD RS*/))|(control[2]&group[42]&current_mc[4]&current_t[`t3]&next_t[`t4]);
+assign rreg_wr = ((group[`MOV_RD_RS]|group[`LXI_RD]|group[`MOV_RD_M])&/*low registers cond*/  (instruction[3])&/*timing cond*/(current_mc[4]&current_t[`t3]&next_t[`t4]/*MOV RD RS*/))|(control[2]&group[42]&current_mc[2]&current_t[`t1]&next_t[`t2]);
+
+assign dbus_to_instr_reg = load_ins&current_t[`t3]&next_t[`t3];
+assign datapin_dbus_tmp = (group[`LXI_RD]|group[`MOV_RD_M])&current_t[`t3]&next_t[`t3];
+assign write_dbus_to_alu_tmp = (((group[`MOV_RD_RS])&(current_t[`t2]&next_t[`t2]))|((group[`LXI_RD]|group[`MOV_RD_M])&current_t[`t3]&next_t[`t3]&(current_mc[3]|current_mc[2]))|(group[`MOV_M_RS]&current_mc[1]&current_t[`t2]&next_t[`t2]))&(~(instruction[2]&instruction[1]&instruction[0]));
+assign sel_0_fe = ((group[`MOV_RD_RS])&(current_t[`t2]&next_t[`t2]&current_mc[4]))|((group[`LXI_RD]|group[`MOV_RD_M])&current_t[`t3]&next_t[`t3]&(current_mc[2]|current_mc[3]))|(group[`MOV_M_RS]&current_mc[1]&current_t[`t2]&next_t[`t2]);
+assign fe_0_to_act = 1'b0;
+assign select_ncarry_1 = (group[`MOV_RD_RS]|group[`LXI_RD]|group[`MVI_RD]|group[`MOV_RD_M])&((current_t[`t2]&next_t[`t2]&current_mc[4])|(current_t[`t3]&next_t[`t3]&(current_mc[3]|current_mc[2]))|(current_mc[1]&current_t[`t2]&next_t[`t2]));
+assign sel_alu_a = (~((instruction[2]&instruction[1]&instruction[0])&(~((instruction[5]&instruction[4]&instruction[3])|(instruction[5]&instruction[4]&~instruction[3])))))&((current_t[`t3]&next_t[`t4]&current_mc[4])|(current_t[`t1]&next_t[`t2]&current_mc[2])|(/*MOV M RS*/current_t[`t2]&next_t[`t3]&current_mc[1]));//0 se la sorgente è accumulatore e destinazione uno dei registri
+assign alu_a_to_dbus = ((current_t[`t3]&next_t[`t4]&current_mc[4])&(bc_rw|de_rw|hl_rw))|((current_t[`t1]&next_t[`t2]&current_mc[2])&(bc_rw|de_rw|hl_rw))|(/*MOV M RS*/current_t[`t2]&next_t[`t3]&current_mc[1]);
+assign alu_to_a = (instruction[5]&instruction[4]&instruction[3])&(current_t[`t3]&next_t[`t4]);
+
+assign ALE = current_t[`t1]&next_t[`t1];
+assign RDn = ~((current_mc[4]|current_mc[3]|current_mc[2])&current_t[`t3]);
+assign WRn = ~(current_mc[1]&(current_t[`t2]|(current_t[`t3]&next_t[`t3])));
 
 endmodule
 
@@ -277,11 +288,11 @@ assign gr[39] = ~instr[7] & ~instr[6] & instr[5] & instr[4] & ~instr[3] & instr[
 assign gr[40] = ~instr[7] & ~instr[6] & ~instr[5] & ~instr[3] & ~instr[2] & instr[1] & ~instr[0];
 assign gr[41] = ~instr[7] & ~instr[6] & ~instr[5] & instr[3] & ~instr[2] & instr[1] & ~instr[0];
 assign gr[`LXI_RD] =  ~instr[7] & ~instr[6] & ~instr[3] & ~instr[2] & ~instr[1] & instr[0];
-assign gr[43] = (~instr[7] & instr[6] & instr[5] & instr[4] & ~instr[3]) & ~ins_m2;
-assign gr[44] = (~instr[7] & instr[6]) & ~ins_m1 & ins_m2;
+assign gr[`MOV_M_RS] = (~instr[7] & instr[6] & instr[5] & instr[4] & ~instr[3]) & ~ins_m2;
+assign gr[`MOV_RD_M] = (~instr[7] & instr[6]) & ~ins_m1 & ins_m2;
 assign gr[`MOV_RD_RS] = ~instr[7] & instr[6] & ~ins_m1 & ~ins_m2;
-assign gr[46] = instr[7] & instr[6] & instr[5] & ~instr[4] & instr[3] & ~instr[2] & instr[1] & instr[0];
-assign gr[47] = ~instr[7] & instr[6] & instr[5] & instr[4] & instr[3] & ~instr[2] & ~instr[1] & instr[0];
+assign gr[`XCHG] = instr[7] & instr[6] & instr[5] & ~instr[4] & instr[3] & ~instr[2] & instr[1] & instr[0];
+assign gr[`HLT] = ~instr[7] & instr[6] & instr[5] & instr[4] & instr[3] & ~instr[2] & ~instr[1] & instr[0];
 
 endmodule
 
@@ -294,8 +305,10 @@ module timingrom
 always_comb begin
 case(group)
 	48'b001000000000000000000000000000000000000000000000: timing = 6'b000111; //MOV RD RS
-	48'b000001000000000000000000000000000000000000000000: timing = 6'b000101; //LXI TO BE FIXED
-	48'b000000000000000000000000000000000100000000000000: timing = 6'b000100; //MVI RS TO BE FIXED
+	48'b000100000000000000000000000000000000000000000000: timing = 6'b000100; //MOV RD M
+	48'b000010000000000000000000000000000000000000000000: timing = 6'b100110; //MOV M RS
+	48'b000001000000000000000000000000000000000000000000: timing = 6'b000101; //LXI
+	48'b000000000000000000000000000000000100000000000000: timing = 6'b000100; //MVI RS
 endcase
 end
 

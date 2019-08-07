@@ -16,6 +16,8 @@ integer i;
 logic [7:0] datao;
 logic [7:0] memory[0:256];
 
+initial memory[11] = 8'hAA;
+
 always@(negedge clk) begin
 	if(rst) begin
 		for(i=0;i<256;i++)
