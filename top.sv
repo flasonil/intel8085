@@ -21,6 +21,7 @@ logic lreg_rd,rreg_rd,lreg_wr,rreg_wr;
 logic write_dbus_to_alu_tmp,sel_alu_a,alu_a_to_dbus,alu_to_a;
 logic sel_0_fe,select_ncarry_1,fe_0_to_act;
 logic datapin_dbus_tmp;
+logic xchg,xchg_status;
 
 logic phi1,phi2,reset;
 logic[14:0] control;
@@ -32,6 +33,10 @@ logic [15:0] address;
 always@(dbus or dbus_to_instr_reg)begin
 	if(dbus_to_instr_reg) instruction_register <= dbus;
 end
+
+//XCHG STATUS: 0 --> HL = HL, DE = DE	1 --> HL = DE, DE = HL
+initial xchg_status = 1'b0;
+always@(posedge xchg) xchg_status <= ~xchg_status;
 
 clockgen clockgen(.x1(x1),.x2(x2),.resetn_in(resetn_in),.phi1(phi1),.phi2(phi2),.reset(reset),.clk_out(clk_out),.reset_out(reset_out));
 
@@ -46,6 +51,7 @@ decoding decoding(
 	.RDn(RDn),
 	.ALE(ALE),
 //	.IOMn(IOMn),
+	.xchg(xchg),
 	.dreg_wr(dreg_wr),
 	.dreg_rd(dreg_rd),
 	.dreg_cnt(dreg_cnt),
@@ -77,8 +83,8 @@ registerfile registerfile(
 	.phi2(phi2),
 	.DATA(dbus),
 	.bc_rw(bc_rw),
-	.de_rw(de_rw),
-	.hl_rw(hl_rw),
+	.de_rw(/*de_rw*/xchg_status?hl_rw:de_rw),
+	.hl_rw(/*hl_rw*/xchg_status?de_rw:hl_rw),
 	.wz_rw(/*wz_rw*//*control[3]*/1'b0),
 	.pc_rw(pc_rw/*control[4]*/),
 	.sp_rw(/*sp_rw*//*control[5]*/1'b0),
