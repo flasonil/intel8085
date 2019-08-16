@@ -35,6 +35,8 @@
 `define LDAX		41
 `define STAX		40
 `define MVI_RD		14
+`define LDA		9
+`define STA		8
 
 module decoding
 (
@@ -49,14 +51,14 @@ module decoding
 	output logic WRn,
 	output logic ALE,
 
-	output logic bc_rw,de_rw,hl_rw,pc_rw,
+	output logic bc_rw,de_rw,hl_rw,wz_rw,pc_rw,
 	output logic dreg_wr,dreg_rd,
 	output logic lreg_rd,rreg_rd,lreg_wr,rreg_wr,
 	output logic dreg_cnt,dreg_inc,
 	output logic dbus_to_instr_reg,
 	output logic write_dbus_to_alu_tmp,sel_alu_a,alu_a_to_dbus,alu_to_a,
 	output logic sel_0_fe,select_ncarry_1,fe_0_to_act,
-	output logic datapin_dbus_tmp,
+	output logic datapin_dbus,
 	output logic xchg
 );
 
@@ -201,38 +203,39 @@ assign de_d = ((~instruction[5]&instruction[4]&~instruction[3])|(~instruction[5]
 assign hl_s = ((instruction[2]&~instruction[1]&~instruction[0])|(instruction[2]&~instruction[1]&instruction[0]))&(group[`MOV_RD_RS]|group[`MOV_M_RS]);
 assign hl_d = ((instruction[5]&~instruction[4]&~instruction[3])|(instruction[5]&~instruction[4]&instruction[3]))&(group[`MOV_RD_RS]|group[`LXI_RD]|group[`MVI_RD]|group[`MOV_RD_M]);
 
-assign bc_rw =	(((current_mc[4]&current_t[`t1]&next_t[`t2]/*MOV RD RS*/)|(current_mc[1]&current_t[`t1]&next_t[`t2]/*MOV M RS*/))&(bc_s))|(((current_mc[4]&current_t[`t3]&next_t[`t4]/*MOV RD RS*/) | (current_mc[2]&current_t[`t1]&next_t[`t2]/*LXI*/))&(bc_d));
-assign de_rw =	(((current_mc[4]&current_t[`t1]&next_t[`t2]/*MOV RD RS*/)|(current_mc[1]&current_t[`t1]&next_t[`t2]/*MOV M RS*/))&(de_s))|(((current_mc[4]&current_t[`t3]&next_t[`t4]/*MOV RD RS*/) | (current_mc[2]&current_t[`t1]&next_t[`t2]/*LXI*/))&(de_d));
-assign hl_rw =	((((current_mc[4]&current_t[`t1]&next_t[`t2]/*MOV RD RS*/)|(current_mc[1]&current_t[`t1]&next_t[`t2]/*MOV M RS*/))&(hl_s))|(((current_mc[4]&current_t[`t3]&next_t[`t4]/*MOV RD RS*/) | (current_mc[2]&current_t[`t1]&next_t[`t2]/*LXI*/))&(hl_d)))|(/* HL to ADDRESS_LATCH */(group[`MOV_RD_M]|group[`MOV_M_RS])&current_mc[4]&current_t[`t4]&next_t[`t1]);
-assign pc_rw = ((group[`MOV_RD_RS]|group[`LXI_RD]|group[`MVI_RD]|group[`XCHG])&current_t[`t4]&next_t[`t1]&current_mc[4]) | ((group[`LXI_RD]|group[`MOV_RD_M]|group[`MVI_RD])&(current_mc[3]|current_mc[2])&current_t[`t3]&next_t[`t1]) | (group[`MOV_M_RS]&current_mc[1]&current_t[`t3]&next_t[`t1]) | (current_mc[4]&current_t[`t2]&next_t[`t3])/* INC to PC sempre in M1T21 */ | (~group[`MOV_RD_M]&~group[`MOV_M_RS]&~current_mc[4]&current_t[`t2]&next_t[`t3]);
+assign bc_rw =	(((current_mc[4]&current_t[`t1]&next_t[`t2]/*MOV RD RS*/)|(current_mc[4]&current_t[`t4]&next_t[`t4]/*MOV M RS*/))&(bc_s))|(((current_mc[4]&current_t[`t3]&next_t[`t4]/*MOV RD RS*/) | (current_mc[2]&current_t[`t1]&next_t[`t2]/*LXI*/))&(bc_d));
+assign de_rw =	(((current_mc[4]&current_t[`t1]&next_t[`t2]/*MOV RD RS*/)|(current_mc[4]&current_t[`t4]&next_t[`t4]/*MOV M RS*/))&(de_s))|(((current_mc[4]&current_t[`t3]&next_t[`t4]/*MOV RD RS*/) | (current_mc[2]&current_t[`t1]&next_t[`t2]/*LXI*/))&(de_d));
+assign hl_rw =	((((current_mc[4]&current_t[`t1]&next_t[`t2]/*MOV RD RS*/)|(current_mc[4]&current_t[`t4]&next_t[`t4]/*MOV M RS*/))&(hl_s))|(((current_mc[4]&current_t[`t3]&next_t[`t4]/*MOV RD RS*/) | (current_mc[2]&current_t[`t1]&next_t[`t2]/*LXI*/))&(hl_d)))|(/* HL to ADDRESS_LATCH */(group[`MOV_RD_M]|group[`MOV_M_RS])&current_mc[4]&current_t[`t4]&next_t[`t1]);
+assign wz_rw = ((group[`LDA]|group[`STA])&current_mc[3]&current_t[`t3]&next_t[`t3])  |  ((group[`LDA]|group[`STA])&current_mc[2]&current_t[`t3]&next_t[`t3]) | ((group[`LDA]|group[`STA])&current_mc[2]&current_t[`t3]&next_t[`t1]);
+assign pc_rw = ((group[`MOV_RD_RS]|group[`LXI_RD]|group[`MVI_RD]|group[`XCHG]|group[`LDA]|group[`STA])&current_t[`t4]&next_t[`t1]&current_mc[4]) | ((group[`LXI_RD]|group[`MOV_RD_M]|group[`MVI_RD]|group[`LDA]|group[`STA])&current_mc[3]&current_t[`t3]&next_t[`t1]) | ((group[`LXI_RD]|group[`MOV_RD_M]|group[`MVI_RD])&current_mc[2]&current_t[`t3]&next_t[`t1]) | ((group[`MOV_M_RS]|group[`LDA]|group[`STA])&current_mc[1]&current_t[`t3]&next_t[`t1]) | (current_mc[4]&current_t[`t2]&next_t[`t3])/* INC to PC sempre in M1T21 */ | (~group[`MOV_RD_M]&~group[`MOV_M_RS]&~current_mc[4]&current_t[`t2]&next_t[`t3])/* | ((~group[`LDA]&~group[`STA]&~group[`MOV_M_RS])&current_mc[1]&current_t[`t2]&next_t[`t3])*/;
 
 assign dreg_wr = next_t[`t3]&current_t[`t2];//inc_to_pc
-assign dreg_rd =  (group[`MOV_RD_RS]|group[`LXI_RD]|group[`MVI_RD]|group[`MOV_RD_M]|group[`MOV_M_RS]|group[`MOV_M_RS]|group[`XCHG])&((current_t[`t4]&next_t[`t1]&current_mc[4])|(current_t[`t3]&next_t[`t1]&(current_mc[3]|current_mc[2]|current_mc[1])));//LEGGO PC O HL IN M1T41 O LEGGO PC IN R1T31 O R2T31 O W1T31
+assign dreg_rd =  (group[`MOV_RD_RS]|group[`LXI_RD]|group[`MVI_RD]|group[`MOV_RD_M]|group[`MOV_M_RS]|group[`MOV_M_RS]|group[`LDA]|group[`STA]|group[`XCHG])&((current_t[`t4]&next_t[`t1]&current_mc[4])|(current_t[`t3]&next_t[`t1]&(current_mc[3]|current_mc[2]|current_mc[1])));//LEGGO PC O HL IN M1T41 O LEGGO PC IN R1T31 O R2T31 O W1T31
 
-assign dreg_cnt = ((group[`MOV_RD_RS]|group[`LXI_RD]|group[`MVI_RD]|group[`XCHG])&next_t[`t1]&current_t[`t4]&current_mc[4]) | ((group[`LXI_RD]|group[`MOV_RD_M]|group[`MVI_RD])&current_t[`t3]&next_t[`t1]&(current_mc[3]|current_mc[2])) | (group[`MOV_M_RS]&current_mc[1]&current_t[`t3]&next_t[`t1]);//pc_to_inc
-assign dreg_inc = ((group[`MOV_RD_RS]|group[`LXI_RD]|group[`MVI_RD]|group[`XCHG])&next_t[`t1]&current_t[`t4]&current_mc[4]) | ((group[`LXI_RD]|group[`MOV_RD_M]|group[`MVI_RD])&current_t[`t3]&next_t[`t1]&(current_mc[3]|current_mc[2])) | (group[`MOV_M_RS]&current_mc[1]&current_t[`t3]&next_t[`t1]);//pc_to_inc
+assign dreg_cnt = ((group[`MOV_RD_RS]|group[`LXI_RD]|group[`MVI_RD]|group[`LDA]|group[`STA]|group[`XCHG])&next_t[`t1]&current_t[`t4]&current_mc[4]) | ((group[`LXI_RD]|group[`MOV_RD_M]|group[`MVI_RD]|group[`LDA]|group[`STA])&current_t[`t3]&next_t[`t1]&current_mc[3]) | ((group[`LXI_RD]|group[`MOV_RD_M]|group[`MVI_RD])&current_mc[2]&current_t[`t3]&next_t[`t1]) | ((group[`MOV_M_RS]|group[`LDA]|group[`STA])&current_mc[1]&current_t[`t3]&next_t[`t1]);//pc_to_inc
+assign dreg_inc = ((group[`MOV_RD_RS]|group[`LXI_RD]|group[`MVI_RD]|group[`LDA]|group[`STA]|group[`XCHG])&next_t[`t1]&current_t[`t4]&current_mc[4]) | ((group[`LXI_RD]|group[`MOV_RD_M]|group[`MVI_RD]|group[`LDA]|group[`STA])&current_t[`t3]&next_t[`t1]&current_mc[3]) | ((group[`LXI_RD]|group[`MOV_RD_M]|group[`MVI_RD])&current_mc[2]&current_t[`t3]&next_t[`t1]) | ((group[`MOV_M_RS]|group[`LDA]|group[`STA])&current_mc[1]&current_t[`t3]&next_t[`t1]);//pc_to_inc
 
-assign lreg_rd = (group[`MOV_RD_RS]|group[`MOV_M_RS])&/*high registers cond*/(~instruction[0])&/*timing cond*/((current_t[`t1]&next_t[`t2])|(current_t[`t2]&next_t[`t2]));
-assign rreg_rd = (group[`MOV_RD_RS]|group[`MOV_M_RS])&/*low registers cond*/  (instruction[0])&/*timing cond*/((current_t[`t1]&next_t[`t2])|(current_t[`t2]&next_t[`t2]));
+assign lreg_rd = ((group[`MOV_RD_RS])&/*high registers cond*/(~instruction[0])&/*timing cond*/((current_t[`t1]&next_t[`t2])|(current_t[`t2]&next_t[`t2]))) | (group[`MOV_M_RS]&(~instruction[0])&((current_mc[4]&current_t[`t4]&next_t[`t4])|(current_mc[4]&current_t[`t4]&next_t[`t1])));
+assign rreg_rd = ((group[`MOV_RD_RS])&/*low registers cond*/  (instruction[0])&/*timing cond*/((current_t[`t1]&next_t[`t2])|(current_t[`t2]&next_t[`t2]))) | (group[`MOV_M_RS]&( instruction[0])&((current_mc[4]&current_t[`t4]&next_t[`t4])|(current_mc[4]&current_t[`t4]&next_t[`t1])));
 
-assign lreg_wr = (/*(group[`MOV_RD_RS]|group[`LXI_RD]|group[`MOV_RD_M])&*//*high registers cond*/(~instruction[3])&/*timing cond*/((group[`MOV_RD_RS]|group[`LXI_RD]|group[`MOV_RD_M]|group[`MVI_RD])&current_mc[4]&current_t[`t3]&next_t[`t4]/*MOV RD RS*/)/*|(current_mc[4]&current_t[`t3]&next_t[`t4]LXI high register write)*/);
-assign rreg_wr = (/*(group[`MOV_RD_RS]|group[`LXI_RD]|group[`MOV_RD_M])&*//*low registers cond*/  (instruction[3])&/*timing cond*/((group[`MOV_RD_RS]|group[`LXI_RD]|group[`MOV_RD_M]|group[`MVI_RD])&current_mc[4]&current_t[`t3]&next_t[`t4]/*MOV RD RS*/)|(group[`LXI_RD]&current_mc[2]&current_t[`t1]&next_t[`t2]/*LXI low register write*/));
+assign lreg_wr = (/*high registers cond*/(~instruction[3])&/*timing cond*/((group[`MOV_RD_RS]|group[`LXI_RD]|group[`MOV_RD_M]|group[`MVI_RD])&current_mc[4]&current_t[`t3]&next_t[`t4]/*MOV RD RS*/))  												| ((group[`LDA]|group[`STA])&current_mc[2]&current_t[`t3]&next_t[`t3]);
+assign rreg_wr = (/*low registers cond */( instruction[3])&/*timing cond*/((group[`MOV_RD_RS]|group[`LXI_RD]|group[`MOV_RD_M]|group[`MVI_RD])&current_mc[4]&current_t[`t3]&next_t[`t4]/*MOV RD RS*/)|(group[`LXI_RD]&current_mc[2]&current_t[`t1]&next_t[`t2]/*LXI low register write*/))	| ((group[`LDA]|group[`STA])&current_mc[3]&current_t[`t3]&next_t[`t3]);
 
 assign dbus_to_instr_reg = load_ins&current_t[`t3]&next_t[`t3];
-assign datapin_dbus_tmp = (group[`LXI_RD]|group[`MOV_RD_M]|group[`MVI_RD])&current_t[`t3]&next_t[`t3];
-assign write_dbus_to_alu_tmp = (((group[`MOV_RD_RS])&(current_t[`t2]&next_t[`t2]))|((group[`LXI_RD]|group[`MOV_RD_M]|group[`MVI_RD])&current_t[`t3]&next_t[`t3]&(current_mc[3]|current_mc[2]))|(group[`MOV_M_RS]&current_mc[1]&current_t[`t2]&next_t[`t2]))&(~(instruction[2]&instruction[1]&instruction[0]));
-assign sel_0_fe = ((group[`MOV_RD_RS])&(current_t[`t2]&next_t[`t2]&current_mc[4]))|((group[`LXI_RD]|group[`MOV_RD_M]|group[`MVI_RD])&current_t[`t3]&next_t[`t3]&(current_mc[2]|current_mc[3]))|(group[`MOV_M_RS]&current_mc[1]&current_t[`t2]&next_t[`t2]);
+assign datapin_dbus = (group[`LXI_RD]|group[`MOV_RD_M]|group[`MVI_RD]|group[`LDA]|group[`STA])&current_t[`t3]&next_t[`t3];
+assign write_dbus_to_alu_tmp = (((group[`MOV_RD_RS])&(current_t[`t2]&next_t[`t2])) | ((group[`LXI_RD]|group[`MOV_RD_M]|group[`MVI_RD])&current_t[`t3]&next_t[`t3]&(current_mc[3]|current_mc[2])) | (group[`MOV_M_RS]&current_mc[4]&current_t[`t4]&next_t[`t1]) | (group[`LDA]&current_mc[1]&current_t[`t3]&next_t[`t3]))&(~(instruction[2]&instruction[1]&instruction[0]));
+assign sel_0_fe = ((group[`MOV_RD_RS])&(current_t[`t2]&next_t[`t2]&current_mc[4]))|((group[`LXI_RD]|group[`MOV_RD_M]|group[`MVI_RD])&current_t[`t3]&next_t[`t3]&(current_mc[2]|current_mc[3]))|(group[`MOV_M_RS]&current_mc[4]&current_t[`t4]&next_t[`t1])|(group[`LDA]&current_mc[1]&current_t[`t3]&next_t[`t3]);
 assign fe_0_to_act = 1'b0;
 assign select_ncarry_1 = (group[`MOV_RD_RS]|group[`LXI_RD]|group[`MVI_RD]|group[`MOV_RD_M])&((current_t[`t2]&next_t[`t2]&current_mc[4])|(current_t[`t3]&next_t[`t3]&(current_mc[3]|current_mc[2]))|(current_mc[1]&current_t[`t2]&next_t[`t2]));
-assign sel_alu_a = (~((instruction[2]&instruction[1]&instruction[0])&(~((instruction[5]&instruction[4]&instruction[3])|(instruction[5]&instruction[4]&~instruction[3])))))&((current_t[`t3]&next_t[`t4]&current_mc[4])|(current_t[`t1]&next_t[`t2]&current_mc[2])|(/*MOV M RS*/current_t[`t2]&next_t[`t3]&current_mc[1]));//0 se la sorgente è accumulatore e destinazione uno dei registri
-assign alu_a_to_dbus = ((current_t[`t3]&next_t[`t4]&current_mc[4])&(bc_rw|de_rw|hl_rw))|((current_t[`t1]&next_t[`t2]&current_mc[2])&(bc_rw|de_rw|hl_rw))|(/*MOV M RS*/current_t[`t2]&next_t[`t3]&current_mc[1]);
+assign sel_alu_a = ((group[`MOV_RD_RS]&(~(instruction[2]&instruction[1]&instruction[0])))|group[`LXI_RD]) & ((current_t[`t3]&next_t[`t4]&current_mc[4])|(current_t[`t1]&next_t[`t2]&current_mc[2]))|(/*MOV M RS*/group[`MOV_M_RS]&current_t[`t2]&next_t[`t3]&current_mc[1]);//0 se la sorgente è accumulatore e destinazione uno dei registri o memoria
+assign alu_a_to_dbus = ((current_t[`t3]&next_t[`t4]&current_mc[4])&(bc_rw|de_rw|hl_rw))|((current_t[`t1]&next_t[`t2]&current_mc[2])&(bc_rw|de_rw|hl_rw))|(/*MOV M RS*/group[`MOV_M_RS]&current_t[`t2]&next_t[`t3]&current_mc[1])|(group[`STA]&current_mc[1]&current_t[`t2]&next_t[`t3]);
 assign alu_to_a = (instruction[5]&instruction[4]&instruction[3])&(current_t[`t3]&next_t[`t4]);
 
 assign xchg = group[`XCHG];
 
 assign ALE = current_t[`t1]&next_t[`t1];
-assign RDn = ~((current_mc[4]|current_mc[3]|current_mc[2])&current_t[`t3]);
-assign WRn = ~(current_mc[1]&(current_t[`t2]|(current_t[`t3]&next_t[`t3])));
+assign RDn = ~((current_mc[4]|current_mc[3]|current_mc[2]|(current_mc[1]&group[`LDA]))&current_t[`t3]);
+assign WRn = ~(current_mc[1]&(current_t[`t2]|(current_t[`t3]&next_t[`t3]))&~group[`LDA]);
 
 endmodule
 
@@ -254,8 +257,8 @@ assign gr[5] = instr[7] & instr[6] & instr[2] & instr[1] & instr[0];
 assign gr[6] = ~instr[7] & ~instr[6] & instr[5] & instr[2] & instr[1] & instr[0];
 assign gr[7] = instr[7] & instr[6] & ~instr[5] & ~instr[4] & instr[3] & ~instr[2] & instr[1] & instr[0];
 
-assign gr[8] = ~instr[7] & ~instr[6] & instr[5] & instr[4] & ~instr[3] & ~instr[2] & instr[1] & ~instr[0];
-assign gr[9] = ~instr[7] & ~instr[6] & instr[5] & instr[4] & instr[3] & ~instr[2] & instr[1] & ~instr[0];
+assign gr[`STA] = ~instr[7] & ~instr[6] & instr[5] & instr[4] & ~instr[3] & ~instr[2] & instr[1] & ~instr[0];
+assign gr[`LDA] = ~instr[7] & ~instr[6] & instr[5] & instr[4] & instr[3] & ~instr[2] & instr[1] & ~instr[0];
 assign gr[10] = instr[7] & instr[6] & ~instr[5] & instr[4] & instr[3] & ~instr[2] & ~instr[1] & instr[0];
 assign gr[11] = instr[7] & instr[6] & instr[5] & ~instr[4] & instr[3] & instr[2] & ~instr[1] & instr[0];
 assign gr[12] = ~instr[7] & ~instr[6] & instr[5] & ~instr[4] & ~instr[3] & ~instr[2] & instr[1] & ~instr[0];
@@ -314,7 +317,11 @@ case(group)
 	48'b000100000000000000000000000000000000000000000000: timing = 6'b000100; //MOV RD M
 	48'b000010000000000000000000000000000000000000000000: timing = 6'b100110; //MOV M RS
 	48'b000001000000000000000000000000000000000000000000: timing = 6'b000101; //LXI
+	48'b000000100000000000000000000000000000000000000000: timing = 6'b000100; //LDAX
+	48'b000000010000000000000000000000000000000000000000: timing = 6'b100110; //STAX
 	48'b000000000000000000000000000000000100000000000000: timing = 6'b000100; //MVI RS
+	48'b000000000000000000000000000000000000001000000000: timing = 6'b000110; //LDA
+	48'b000000000000000000000000000000000000000100000000: timing = 6'b000110; //SDA
 endcase
 end
 

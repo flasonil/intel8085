@@ -16,11 +16,11 @@ module top
 );
 //logic S0int,S1int,RDnint,WRnint,ALEint,IOMnint,dbus_to_instr_reg;
 logic dbus_to_instr_reg;
-logic dreg_wr,bc_rw,de_rw,hl_rw,pc_rw;
+logic dreg_wr,bc_rw,de_rw,hl_rw,wz_rw,pc_rw;
 logic lreg_rd,rreg_rd,lreg_wr,rreg_wr;
 logic write_dbus_to_alu_tmp,sel_alu_a,alu_a_to_dbus,alu_to_a;
 logic sel_0_fe,select_ncarry_1,fe_0_to_act;
-logic datapin_dbus_tmp;
+logic datapin_dbus;
 logic xchg,xchg_status;
 
 logic phi1,phi2,reset;
@@ -63,10 +63,11 @@ decoding decoding(
 	.bc_rw(bc_rw),
 	.de_rw(de_rw),
 	.hl_rw(hl_rw),
+	.wz_rw(wz_rw),
 	.pc_rw(pc_rw),
 	.dbus_to_instr_reg(dbus_to_instr_reg),
 	.write_dbus_to_alu_tmp(write_dbus_to_alu_tmp),
-	.datapin_dbus_tmp(datapin_dbus_tmp),
+	.datapin_dbus(datapin_dbus),
 	.next_instruction(instruction_register),
 	.sel_0_fe(sel_0_fe),
 	.select_ncarry_1(select_ncarry_1),
@@ -85,7 +86,7 @@ registerfile registerfile(
 	.bc_rw(bc_rw),
 	.de_rw(/*de_rw*/xchg_status?hl_rw:de_rw),
 	.hl_rw(/*hl_rw*/xchg_status?de_rw:hl_rw),
-	.wz_rw(/*wz_rw*//*control[3]*/1'b0),
+	.wz_rw(wz_rw/*control[3]*/),
 	.pc_rw(pc_rw/*control[4]*/),
 	.sp_rw(/*sp_rw*//*control[5]*/1'b0),
 	.rreg_rd(rreg_rd/*control[6]*/),
@@ -131,7 +132,7 @@ always_comb begin
  else if(!WRn) data_out <= dbus;
 end
 
-assign dbus = (dbus_to_instr_reg|datapin_dbus_tmp) ? laddress_data : 8'bzzzzzzzz;
+assign dbus = (dbus_to_instr_reg|datapin_dbus) ? laddress_data : 8'bzzzzzzzz;
 assign laddress_data = ((RDn&!IOMn&!WRn)|ALE) ? data_out : 8'bzzzzzzzz;
 assign haddress = address[15:8];
 
